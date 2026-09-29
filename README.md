@@ -1,11 +1,27 @@
 <p align="center">
-  <img src="https://skillicons.dev/icons?i=go" />
+  <img src="https://skillicons.dev/icons?i=go" alt="Go" />
 </p>
-<br>
 
-# gofilt
+<h1 align="center">gofilt</h1>
 
-Lightweight, type-safe filter builder for Go. Parse filter parameters from struct tags or URL query params into a portable `Filter` AST, then apply it to GORM, `database/sql`, or any custom backend via adapter pattern.
+<p align="center">
+  Lightweight, type-safe filter builder for Go.
+</p>
+
+<p align="center">
+  <a href="https://github.com/noormaulida/gofilt/actions/workflows/go.yml">
+    <img src="https://github.com/noormaulida/gofilt/actions/workflows/go.yml/badge.svg" alt="Go Tests" />
+  </a>
+  <a href="https://codecov.io/gh/noormaulida/gofilt">
+    <img src="https://codecov.io/gh/noormaulida/gofilt/graph/badge.svg" alt="codecov" />
+  </a>
+  <a href="https://pkg.go.dev/github.com/noormaulida/gofilt">
+    <img src="https://pkg.go.dev/badge/github.com/noormaulida/gofilt.svg" alt="Go Reference" />
+  </a>
+  <a href="https://github.com/noormaulida/gofilt/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/noormaulida/gofilt" alt="License" />
+  </a>
+</p>
 
 ## Features
 
