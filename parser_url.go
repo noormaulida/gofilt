@@ -42,7 +42,7 @@ func FromURL(values url.Values, opts ...Option) (*Filter, error) {
 	filter := &Filter{}
 
 	for key, valList := range values {
-		if len(valList) == 0 || valList[0] == "" {
+		if len(valList) == 0 || valList[0] == "" || key == "" {
 			continue
 		}
 

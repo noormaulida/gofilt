@@ -24,13 +24,6 @@ type allowedFieldsOption struct {
 	fields map[string]bool
 }
 
-func isFieldAllowed(allowed map[string]bool, field string) bool {
-	if len(allowed) == 0 {
-		return true
-	}
-	return allowed[field]
-}
-
 // WithAllowedFields restricts the set of columns parsers are allowed to emit.
 // Any parsed field whose column name is not in the whitelist is dropped
 // from the output Filter. Call with no arguments is a no-op.

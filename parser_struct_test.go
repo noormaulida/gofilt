@@ -88,7 +88,6 @@ func TestFromStruct_WithAllowedFields(t *testing.T) {
 		Status: "active",
 	}
 
-	// Hanya izinkan 'name' dan 'status'
 	filter, err := FromStruct(req, WithAllowedFields("name", "status"))
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -102,5 +101,52 @@ func TestFromStruct_WithAllowedFields(t *testing.T) {
 		if cond.Field == "age" {
 			t.Errorf("field 'age' should have been filtered out by whitelist")
 		}
+	}
+}
+
+type QueryBadOp struct {
+	Name string `filt:"col:name;op:thisisnotrealop"`
+}
+
+func TestFromStruct_UnknownOperatorDefaultsToEq(t *testing.T) {
+	req := QueryBadOp{Name: "Test"}
+
+	filter, err := FromStruct(req)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(filter.Conditions) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(filter.Conditions))
+	}
+
+	if filter.Conditions[0].Operator != OpEq {
+		t.Errorf("unknown op should fall back to OpEq, got %v", filter.Conditions[0].Operator)
+	}
+	if filter.Conditions[0].Field != "name" {
+		t.Errorf("field still required: got %q", filter.Conditions[0].Field)
+	}
+}
+
+type QueryMalformedTag struct {
+	Name string `filt:"col:name;thispart_just_text_no_colon;third;"`
+}
+
+func TestFromStruct_MalformedTagPartsSkipped(t *testing.T) {
+	req := QueryMalformedTag{Name: "value"}
+
+	filter, err := FromStruct(req)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(filter.Conditions) != 1 {
+		t.Fatalf("expected 1 condition (col part valid, rest are skipped), got %d", len(filter.Conditions))
+	}
+	if filter.Conditions[0].Field != "name" {
+		t.Errorf("expected col name, got %q", filter.Conditions[0].Field)
+	}
+	if filter.Conditions[0].Operator != OpEq {
+		t.Errorf("expected default OpEq, got %v", filter.Conditions[0].Operator)
 	}
 }
