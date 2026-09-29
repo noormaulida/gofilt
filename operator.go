@@ -26,6 +26,12 @@ var symbolAliases = map[string]Operator{
 	"<=": OpLte,
 }
 
+// LookupOperator resolves a user-supplied operator name (word or symbol)
+// to its Operator constant. The input is trimmed and lowercased before lookup.
+// The second return value is false when the input is empty or unrecognized.
+//
+// Recognized word aliases: eq, ne, gt, gte, lt, lte, like, ilike, in, between.
+// Recognized symbol aliases: =, ==, !=, <>, >, >=, <, <=.
 func LookupOperator(name string) (Operator, bool) {
 	key := strings.ToLower(strings.TrimSpace(name))
 	if key == "" {
@@ -40,6 +46,8 @@ func LookupOperator(name string) (Operator, bool) {
 	return op, ok
 }
 
+// IsKnownOperator reports whether name resolves to a known operator.
+// It is a convenience wrapper around LookupOperator that discards the result.
 func IsKnownOperator(name string) bool {
 	_, ok := LookupOperator(name)
 	return ok

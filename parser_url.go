@@ -19,6 +19,20 @@ var urlOpMap = map[string]Operator{
 	"between": OpBetween,
 }
 
+// FromURL parses an HTTP query string (url.Values) into a Filter.
+//
+// Field syntax is `field` (defaults to OpEq) or `field[operator]` for an
+// explicit operator — e.g. name[ilike], age[gte].
+//
+// Special keys:
+//
+//	limit=<int>  -> sets Filter.Limit
+//	offset=<int> -> sets Filter.Offset (alias "page" also works)
+//
+// Values containing commas are automatically split into a slice and the
+// operator is forced to OpIn, unless the operator was already set to OpIn.
+//
+// Empty values and empty query keys are ignored.
 func FromURL(values url.Values, opts ...Option) (*Filter, error) {
 	cfg := defaultOptions()
 	for _, opt := range opts {

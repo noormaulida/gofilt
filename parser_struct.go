@@ -13,6 +13,24 @@ type tagMeta struct {
 
 var tagCache sync.Map
 
+// FromStruct builds a Filter by reading the exported fields of input via reflection.
+// The input can be a struct value or a pointer to a struct.
+//
+// Each struct field is scanned for a tag (default name "filt"; override with
+// WithTagName). The tag format is `col:<dbcolumn>;op:<operator>`. The operator
+// part is optional and defaults to OpEq. Use tag value "-" (or no tag) to skip
+// the field.
+//
+// Fields that hold the zero value for their type are skipped so that unset
+// query parameters do not leak into the final Filter.
+//
+// Example struct:
+//
+//	type UserQuery struct {
+//	    Name   string `filt:"col:name;op:ilike"`
+//	    Age    int    `filt:"col:age;op:gte"`
+//	    Status string `filt:"col:status"`
+//	}
 func FromStruct(input any, opts ...Option) (*Filter, error) {
 	cfg := defaultOptions()
 	for _, opt := range opts {

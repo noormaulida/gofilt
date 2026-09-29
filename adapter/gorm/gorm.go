@@ -7,6 +7,16 @@ import (
 	"gorm.io/gorm"
 )
 
+// Apply attaches every condition in f to the GORM query db via db.Where,
+// then applies Limit and Offset when they are greater than zero.
+// It returns the resulting *gorm.DB so further query chaining is possible.
+//
+// Operator handling:
+//
+//	LIKE / ILIKE  -> value is wrapped with %...%
+//	IN            -> value slice is expanded by GORM's IN (?) syntax
+//	BETWEEN       -> value is passed as two positional args (? AND ?)
+//	others (=, !=, >, >=, <, <=)  -> raw parameterized condition
 func Apply(db *gorm.DB, f *gofilt.Filter) *gorm.DB {
 	for _, cond := range f.Conditions {
 		switch cond.Operator {
