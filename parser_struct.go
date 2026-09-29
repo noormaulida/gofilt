@@ -40,6 +40,10 @@ func FromStruct(input any, opts ...Option) (*Filter, error) {
 			continue
 		}
 
+		if !cfg.isAllowed(meta.column) {
+			continue
+		}
+
 		filter.Conditions = append(filter.Conditions, Condition{
 			Field:    meta.column,
 			Operator: meta.op,
@@ -74,7 +78,9 @@ func parseTag(structType reflect.Type, field reflect.StructField, tagName string
 		case "col":
 			meta.column = kv[1]
 		case "op":
-			meta.op = Operator(strings.ToUpper(kv[1]))
+			if op, ok := LookupOperator(kv[1]); ok {
+				meta.op = op
+			}
 		}
 	}
 

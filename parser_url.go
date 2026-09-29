@@ -48,6 +48,10 @@ func FromURL(values url.Values, opts ...Option) (*Filter, error) {
 		field, op := parseURLKey(key)
 		val := valList[0]
 
+		if !cfg.isAllowed(field) {
+			continue
+		}
+
 		var parsedVal any = val
 		if op == OpIn || strings.Contains(val, ",") {
 			parts := strings.Split(val, ",")
