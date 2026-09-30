@@ -2,7 +2,9 @@
   <img src="https://skillicons.dev/icons?i=go" alt="Go" />
 </p>
 
-<h1 align="center">gofilt</h1>
+<div align="center">
+  <h1>gofilt</h1>
+</div>
 
 <p align="center">
   Lightweight, type-safe filter builder for Go.
