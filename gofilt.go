@@ -1,5 +1,15 @@
 package gofilt
 
+import "errors"
+
+var (
+	// ErrInvalidLimit is returned when a limit parameter cannot be parsed or is negative.
+	ErrInvalidLimit = errors.New("gofilt: invalid limit")
+
+	// ErrInvalidOffset is returned when an offset or page parameter cannot be parsed or is negative.
+	ErrInvalidOffset = errors.New("gofilt: invalid offset")
+)
+
 // Operator is the comparison operator applied to a filter condition.
 // Each operator maps to the equivalent SQL operator when rendered by an adapter.
 type Operator string
@@ -60,6 +70,8 @@ type options struct {
 	allowUnknown  bool
 	allowedFields map[string]bool
 	allowedSorts  map[string]bool
+	defaultLimit  int
+	maxLimit      int
 }
 
 func defaultOptions() *options {
@@ -68,5 +80,7 @@ func defaultOptions() *options {
 		allowUnknown:  false,
 		allowedFields: nil,
 		allowedSorts:  nil,
+		defaultLimit:  0,
+		maxLimit:      0,
 	}
 }

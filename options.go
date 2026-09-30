@@ -59,6 +59,39 @@ func WithAllowedSorts(fields ...string) Option {
 	}
 }
 
+// WithDefaultLimit sets a fallback limit to use when no limit parameter is
+// specified in the input. If limit <= 0, this option is ignored.
+func WithDefaultLimit(limit int) Option {
+	return func(o *options) {
+		if limit > 0 {
+			o.defaultLimit = limit
+		}
+	}
+}
+
+// WithMaxLimit sets an upper bound on the allowed limit. If a requested limit
+// exceeds max, it is clamped to max. If max <= 0, this option is ignored.
+func WithMaxLimit(max int) Option {
+	return func(o *options) {
+		if max > 0 {
+			o.maxLimit = max
+		}
+	}
+}
+
+func (o *options) resolveLimit(requested int, hasRequested bool) int {
+	var limit int
+	if hasRequested {
+		limit = requested
+	} else if o.defaultLimit > 0 {
+		limit = o.defaultLimit
+	}
+	if o.maxLimit > 0 && limit > o.maxLimit {
+		limit = o.maxLimit
+	}
+	return limit
+}
+
 func (o *options) isAllowed(field string) bool {
 	if o.allowedFields == nil {
 		return true

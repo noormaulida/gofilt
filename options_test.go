@@ -112,3 +112,80 @@ func TestWithAllowedSorts_EmptyInput(t *testing.T) {
 		t.Errorf("expected sorting to be disabled without a whitelist")
 	}
 }
+
+func TestWithDefaultLimit(t *testing.T) {
+	opts := defaultOptions()
+	WithDefaultLimit(25)(opts)
+	if opts.defaultLimit != 25 {
+		t.Errorf("expected defaultLimit 25, got %d", opts.defaultLimit)
+	}
+
+	// Non-positive values should be ignored
+	WithDefaultLimit(0)(opts)
+	if opts.defaultLimit != 25 {
+		t.Errorf("expected defaultLimit to remain 25 after 0, got %d", opts.defaultLimit)
+	}
+
+	WithDefaultLimit(-10)(opts)
+	if opts.defaultLimit != 25 {
+		t.Errorf("expected defaultLimit to remain 25 after negative input, got %d", opts.defaultLimit)
+	}
+}
+
+func TestWithMaxLimit(t *testing.T) {
+	opts := defaultOptions()
+	WithMaxLimit(100)(opts)
+	if opts.maxLimit != 100 {
+		t.Errorf("expected maxLimit 100, got %d", opts.maxLimit)
+	}
+
+	// Non-positive values should be ignored
+	WithMaxLimit(0)(opts)
+	if opts.maxLimit != 100 {
+		t.Errorf("expected maxLimit to remain 100 after 0, got %d", opts.maxLimit)
+	}
+
+	WithMaxLimit(-50)(opts)
+	if opts.maxLimit != 100 {
+		t.Errorf("expected maxLimit to remain 100 after negative input, got %d", opts.maxLimit)
+	}
+}
+
+func TestOptions_ResolveLimit(t *testing.T) {
+	opts := defaultOptions()
+
+	// Default unconfigured: requested is used
+	if got := opts.resolveLimit(30, true); got != 30 {
+		t.Errorf("resolveLimit with requested 30: got %d, want 30", got)
+	}
+	// Default unconfigured: no requested -> 0
+	if got := opts.resolveLimit(0, false); got != 0 {
+		t.Errorf("resolveLimit with no requested: got %d, want 0", got)
+	}
+
+	// Configured with default limit 20
+	opts.defaultLimit = 20
+	if got := opts.resolveLimit(0, false); got != 20 {
+		t.Errorf("resolveLimit with defaultLimit 20: got %d, want 20", got)
+	}
+	// Explicit requested overrides default limit
+	if got := opts.resolveLimit(50, true); got != 50 {
+		t.Errorf("resolveLimit explicit requested 50 overrides default: got %d, want 50", got)
+	}
+
+	// Configured with max limit 100
+	opts.maxLimit = 100
+	if got := opts.resolveLimit(500, true); got != 100 {
+		t.Errorf("resolveLimit clamped to maxLimit: got %d, want 100", got)
+	}
+	if got := opts.resolveLimit(40, true); got != 40 {
+		t.Errorf("resolveLimit below maxLimit: got %d, want 40", got)
+	}
+
+	// Default limit exceeding max limit is clamped
+	opts.defaultLimit = 200
+	if got := opts.resolveLimit(0, false); got != 100 {
+		t.Errorf("resolveLimit defaultLimit clamped to maxLimit: got %d, want 100", got)
+	}
+}
+

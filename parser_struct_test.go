@@ -150,3 +150,25 @@ func TestFromStruct_MalformedTagPartsSkipped(t *testing.T) {
 		t.Errorf("expected default OpEq, got %v", filter.Conditions[0].Operator)
 	}
 }
+
+func TestFromStruct_WithPaginationLimits(t *testing.T) {
+	req := UserQuery{Name: "Budi"}
+
+	// Test default limit applied to FromStruct
+	filter, err := FromStruct(req, WithDefaultLimit(25))
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if filter.Limit != 25 {
+		t.Errorf("expected limit 25, got %d", filter.Limit)
+	}
+
+	// Test max limit clamps default limit in FromStruct
+	filterClamped, err := FromStruct(req, WithDefaultLimit(200), WithMaxLimit(100))
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if filterClamped.Limit != 100 {
+		t.Errorf("expected limit 100, got %d", filterClamped.Limit)
+	}
+}

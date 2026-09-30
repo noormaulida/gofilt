@@ -3,7 +3,7 @@
 </p>
 
 <div align="center">
-  <h1>gofilt</h1>
+  <h1 class="h1">gofilt</h1>
 </div>
 
 <p align="center">
@@ -32,6 +32,9 @@
 - Whitelist allowed fields with `WithAllowedFields`
 - Multi-field sorting with `sort=name,-created_at`
 - Whitelist sortable fields with `WithAllowedSorts`
+- Configurable pagination limits with `WithDefaultLimit` and `WithMaxLimit`
+- Deterministic pagination validation with `ErrInvalidLimit` and `ErrInvalidOffset`
+- Pagination metadata helper with `filter.Pagination()`, `Page()`, `NextOffset()`, `PreviousOffset()`
 - Custom struct tag name with `WithTagName`
 - 10 operators: `=`, `!=`, `>`, `>=`, `<`, `<=`, `LIKE`, `ILIKE`, `IN`, `BETWEEN`
 - Zero dependencies for the core module
@@ -70,7 +73,7 @@ func main() {
         gofilt.WithAllowedFields("name", "age", "status"),
     )
     // filter.Conditions = [
-    //   {Field: "name", Operator: "ILIKE", Value: "Budi"},
+    //   {Field: "name", Operator: "ILIKE", Value: "Noor"},
     //   {Field: "age",  Operator: ">=",    Value: 20},
     //   {Field: "status", Operator: "=",    Value: "active"},
     // ]
@@ -83,17 +86,34 @@ func main() {
 package main
 
 import (
+    "errors"
     "net/http"
+
     "github.com/noormaulida/gofilt"
 )
 
 func handler(w http.ResponseWriter, r *http.Request) {
-    filter, _ := gofilt.FromURL(r.URL.Query(),
+    filter, err := gofilt.FromURL(r.URL.Query(),
         gofilt.WithAllowedFields("name", "age", "status"),
         gofilt.WithAllowedSorts("name", "created_at"),
+        gofilt.WithDefaultLimit(20),
+        gofilt.WithMaxLimit(100),
     )
+    if errors.Is(err, gofilt.ErrInvalidLimit) {
+        http.Error(w, "invalid limit parameter", http.StatusBadRequest)
+        return
+    }
+    if errors.Is(err, gofilt.ErrInvalidOffset) {
+        http.Error(w, "invalid offset parameter", http.StatusBadRequest)
+        return
+    }
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
     // Query string:
-    // ?name[ilike]=Budi&age[gte]=20&sort=name,-created_at&limit=10&offset=20
+    // ?name[ilike]=Noor&age[gte]=20&sort=name,-created_at&limit=10&offset=20
     _ = filter.Limit  // 10
     _ = filter.Offset // 20
     // filter.Sorts = [
@@ -111,9 +131,9 @@ Supported URL syntax:
 
 | Syntax | Operator |
 |--------|----------|
-| `name=Budi` | `=` (default) |
-| `name[eq]=Budi` | `=` |
-| `name[ne]=Budi` | `!=` |
+| `name=Noor` | `=` (default) |
+| `name[eq]=Noor` | `=` |
+| `name[ne]=Noor` | `!=` |
 | `age[gt]=20` | `>` |
 | `age[gte]=21` | `>=` |
 | `age[lt]=100` | `<` |
@@ -124,8 +144,24 @@ Supported URL syntax:
 | `status=active,pending` | `IN` (auto-detect comma) |
 | `sort=name` | Sort by `name` ascending |
 | `sort=name,-created_at` | Sort by `name` ascending, then `created_at` descending |
-| `limit=10` | Pagination |
-| `offset=20` or `page=20` | Pagination |
+| `limit=10` | Pagination limit (defaults with `WithDefaultLimit`, capped by `WithMaxLimit`) |
+| `offset=20` or `page=20` | Pagination offset |
+
+Negative or non-integer values for `limit`, `offset`, or `page` return `ErrInvalidLimit` or `ErrInvalidOffset` deterministically.
+
+### Pagination & Metadata
+
+`Filter` provides a lightweight `Pagination()` helper to calculate page numbers and offsets:
+
+```go
+pagination := filter.Pagination()
+
+page := pagination.Page()           // Current 1-based page number (e.g. 3)
+next := pagination.NextOffset()     // Offset for next page (e.g. 30)
+prev := pagination.PreviousOffset() // Offset for previous page (e.g. 10, clamped to 0)
+```
+
+> **Note**: `Total` record count is intentionally excluded from `Filter` and `Pagination`. Calculating total records requires a `COUNT(*)` database query, which is the responsibility of the repository or database layer.
 
 ### Apply with GORM
 
@@ -146,7 +182,7 @@ import gofiltsql "github.com/noormaulida/gofilt/adapter/sql"
 where, args := gofiltsql.BuildWHERE(filter)
 orderBy := gofiltsql.BuildORDER(filter)
 // where = "WHERE name ILIKE $1 AND age >= $2"
-// args  = ["%Budi%", 20]
+// args  = ["%Noor%", 20]
 // orderBy = "ORDER BY name ASC, created_at DESC"
 rows, _ := db.QueryContext(ctx,
     "SELECT * FROM users "+where+" "+orderBy,
@@ -162,6 +198,8 @@ rows, _ := db.QueryContext(ctx,
 | `WithAllowUnknown(bool)` | Reserved for future URL-parser strict mode |
 | `WithAllowedFields(...string)` | Whitelist-only mode — drop any field not in the list |
 | `WithAllowedSorts(...string)` | Allow sorting only by listed fields; unknown fields are ignored |
+| `WithDefaultLimit(limit int)` | Fallback limit when no limit is provided in input |
+| `WithMaxLimit(max int)` | Cap the maximum allowed limit to guard against large queries |
 
 ## Struct Tag Format
 
@@ -180,7 +218,8 @@ type Query struct {
 
 ```
 gofilt/
-├── gofilt.go              # Core types: Filter, Condition, Operator, Option
+├── gofilt.go              # Core types: Filter, Condition, Operator, Option, Errors
+├── pagination.go          # Pagination metadata helper: Page, NextOffset, PreviousOffset
 ├── operator.go            # Operator lookup & aliases (public)
 ├── options.go             # Option constructors + defaultOptions
 ├── parser_struct.go       # FromStruct — reflect-based struct parser
