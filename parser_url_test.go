@@ -177,3 +177,150 @@ func TestFromURL_SortsRequireWhitelist(t *testing.T) {
 		t.Errorf("expected sorting disabled without WithAllowedSorts, got %+v", disabled.Sorts)
 	}
 }
+
+func TestFromURL_WithDefaultLimit(t *testing.T) {
+	// When limit parameter is omitted, default limit is applied
+	filter, err := FromURL(url.Values{"name": []string{"alice"}}, WithDefaultLimit(20))
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if filter.Limit != 20 {
+		t.Errorf("expected default limit 20, got %d", filter.Limit)
+	}
+
+	// When limit is explicitly provided, it overrides default limit
+	filterWithLimit, err := FromURL(url.Values{"limit": []string{"50"}}, WithDefaultLimit(20))
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if filterWithLimit.Limit != 50 {
+		t.Errorf("expected explicit limit 50, got %d", filterWithLimit.Limit)
+	}
+
+	// When limit is empty string, default limit is applied
+	filterEmptyLimit, err := FromURL(url.Values{"limit": []string{""}}, WithDefaultLimit(20))
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if filterEmptyLimit.Limit != 20 {
+		t.Errorf("expected default limit 20 for empty limit param, got %d", filterEmptyLimit.Limit)
+	}
+}
+
+func TestFromURL_WithMaxLimit(t *testing.T) {
+	// Requested limit > maxLimit is clamped to maxLimit
+	filter, err := FromURL(url.Values{"limit": []string{"1000"}}, WithMaxLimit(100))
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if filter.Limit != 100 {
+		t.Errorf("expected limit clamped to 100, got %d", filter.Limit)
+	}
+
+	// Requested limit <= maxLimit remains unchanged
+	filterUnder, err := FromURL(url.Values{"limit": []string{"50"}}, WithMaxLimit(100))
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if filterUnder.Limit != 50 {
+		t.Errorf("expected limit 50, got %d", filterUnder.Limit)
+	}
+
+	// Default limit exceeding max limit is clamped
+	filterDefaultOverMax, err := FromURL(url.Values{}, WithDefaultLimit(200), WithMaxLimit(100))
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if filterDefaultOverMax.Limit != 100 {
+		t.Errorf("expected default limit clamped to max limit 100, got %d", filterDefaultOverMax.Limit)
+	}
+}
+
+func TestFromURL_NegativeAndInvalidLimit(t *testing.T) {
+	// Negative limit returns ErrInvalidLimit
+	_, err := FromURL(url.Values{"limit": []string{"-10"}})
+	if err != ErrInvalidLimit {
+		t.Errorf("expected ErrInvalidLimit for negative limit, got %v", err)
+	}
+
+	// Non-numeric limit returns ErrInvalidLimit
+	_, err = FromURL(url.Values{"limit": []string{"abc"}})
+	if err != ErrInvalidLimit {
+		t.Errorf("expected ErrInvalidLimit for non-numeric limit, got %v", err)
+	}
+}
+
+func TestFromURL_NegativeAndInvalidOffset(t *testing.T) {
+	// Negative offset returns ErrInvalidOffset
+	_, err := FromURL(url.Values{"offset": []string{"-20"}})
+	if err != ErrInvalidOffset {
+		t.Errorf("expected ErrInvalidOffset for negative offset, got %v", err)
+	}
+
+	// Non-numeric offset returns ErrInvalidOffset
+	_, err = FromURL(url.Values{"offset": []string{"xyz"}})
+	if err != ErrInvalidOffset {
+		t.Errorf("expected ErrInvalidOffset for non-numeric offset, got %v", err)
+	}
+}
+
+func TestFromURL_NegativeAndInvalidPage(t *testing.T) {
+	// Negative page returns ErrInvalidOffset
+	_, err := FromURL(url.Values{"page": []string{"-5"}})
+	if err != ErrInvalidOffset {
+		t.Errorf("expected ErrInvalidOffset for negative page, got %v", err)
+	}
+
+	// Non-numeric page returns ErrInvalidOffset
+	_, err = FromURL(url.Values{"page": []string{"invalid"}})
+	if err != ErrInvalidOffset {
+		t.Errorf("expected ErrInvalidOffset for non-numeric page, got %v", err)
+	}
+}
+
+func TestFromURL_DeterministicErrorOrder(t *testing.T) {
+	// When both limit and offset are negative, limit error is returned deterministically
+	_, err := FromURL(url.Values{
+		"limit":  []string{"-10"},
+		"offset": []string{"-20"},
+	})
+	if err != ErrInvalidLimit {
+		t.Errorf("expected ErrInvalidLimit to take precedence, got %v", err)
+	}
+}
+
+func TestFromURL_OffsetAndPageInteraction(t *testing.T) {
+	// When both offset and page are provided and valid, offset takes precedence
+	filter, err := FromURL(url.Values{
+		"offset": []string{"20"},
+		"page":   []string{"5"},
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if filter.Offset != 20 {
+		t.Errorf("expected Offset 20, got %d", filter.Offset)
+	}
+
+	// When offset is empty string, page is applied
+	filterPageOnly, err := FromURL(url.Values{
+		"offset": []string{""},
+		"page":   []string{"8"},
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if filterPageOnly.Offset != 8 {
+		t.Errorf("expected Offset 8 from page, got %d", filterPageOnly.Offset)
+	}
+
+	// When offset is valid but page is invalid, ErrInvalidOffset is returned
+	_, err = FromURL(url.Values{
+		"offset": []string{"20"},
+		"page":   []string{"-1"},
+	})
+	if err != ErrInvalidOffset {
+		t.Errorf("expected ErrInvalidOffset for invalid page alongside valid offset, got %v", err)
+	}
+}
+

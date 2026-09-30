@@ -43,7 +43,9 @@ func FromStruct(input any, opts ...Option) (*Filter, error) {
 	}
 
 	t := val.Type()
-	filter := &Filter{}
+	filter := &Filter{
+		Limit: cfg.resolveLimit(0, false),
+	}
 
 	for i := 0; i < val.NumField(); i++ {
 		fieldVal := val.Field(i)

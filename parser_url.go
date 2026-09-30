@@ -26,9 +26,12 @@ var urlOpMap = map[string]Operator{
 //
 // Special keys:
 //
-//	limit=<int>  -> sets Filter.Limit
-//	offset=<int> -> sets Filter.Offset (alias "page" also works)
+//	limit=<int>  -> sets Filter.Limit (validated against WithMaxLimit / WithDefaultLimit)
+//	offset=<int> -> sets Filter.Offset
+//	page=<int>   -> sets Filter.Offset (alias for offset)
 //	sort=name,-created_at -> appends allowed ascending/descending sorts
+//
+// Negative limit or offset values return ErrInvalidLimit or ErrInvalidOffset.
 //
 // Values containing commas are automatically split into a slice and the
 // operator is forced to OpIn, unless the operator was already set to OpIn.
@@ -43,23 +46,46 @@ func FromURL(values url.Values, opts ...Option) (*Filter, error) {
 
 	filter := &Filter{}
 
+	hasLimit := false
+	var parsedLimit int
+	if valList, exists := values["limit"]; exists && len(valList) > 0 && valList[0] != "" {
+		l, err := strconv.Atoi(valList[0])
+		if err != nil || l < 0 {
+			return nil, ErrInvalidLimit
+		}
+		parsedLimit = l
+		hasLimit = true
+	}
+	filter.Limit = cfg.resolveLimit(parsedLimit, hasLimit)
+
+	hasOffset := false
+	if valList, exists := values["offset"]; exists && len(valList) > 0 && valList[0] != "" {
+		o, err := strconv.Atoi(valList[0])
+		if err != nil || o < 0 {
+			return nil, ErrInvalidOffset
+		}
+		filter.Offset = o
+		hasOffset = true
+	}
+	if valList, exists := values["page"]; exists && len(valList) > 0 && valList[0] != "" {
+		p, err := strconv.Atoi(valList[0])
+		if err != nil || p < 0 {
+			return nil, ErrInvalidOffset
+		}
+		if !hasOffset {
+			filter.Offset = p
+		}
+	}
+
 	for key, valList := range values {
 		if len(valList) == 0 || valList[0] == "" || key == "" {
 			continue
 		}
 
-		if key == "limit" {
-			if l, err := strconv.Atoi(valList[0]); err == nil {
-				filter.Limit = l
-			}
+		if key == "limit" || key == "offset" || key == "page" {
 			continue
 		}
-		if key == "offset" || key == "page" {
-			if o, err := strconv.Atoi(valList[0]); err == nil {
-				filter.Offset = o
-			}
-			continue
-		}
+
 		if key == "sort" {
 			for _, value := range valList {
 				filter.Sorts = append(filter.Sorts, parseSorts(value, cfg)...)
