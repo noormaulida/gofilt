@@ -3,13 +3,17 @@ package gofiltgorm
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 
 	"github.com/noormaulida/gofilt"
 	"gorm.io/gorm"
 )
 
+var safeSortField = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$`)
+
 // Apply attaches every condition in f to the GORM query db via db.Where,
-// then applies Limit and Offset when they are greater than zero.
+// applies validated sorts in order, then applies Limit and Offset when they
+// are greater than zero.
 // It returns the resulting *gorm.DB so further query chaining is possible.
 //
 // Operator handling:
@@ -37,6 +41,16 @@ func Apply(db *gorm.DB, f *gofilt.Filter) *gorm.DB {
 		default:
 			query := fmt.Sprintf("%s %s ?", cond.Field, cond.Operator)
 			db = db.Where(query, cond.Value)
+		}
+	}
+
+	for _, sort := range f.Sorts {
+		if !safeSortField.MatchString(sort.Field) {
+			continue
+		}
+		switch sort.Direction {
+		case gofilt.DirectionAsc, gofilt.DirectionDesc:
+			db = db.Order(fmt.Sprintf("%s %s", sort.Field, sort.Direction))
 		}
 	}
 

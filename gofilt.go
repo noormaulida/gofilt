@@ -25,12 +25,28 @@ type Condition struct {
 	Value    any
 }
 
+// Direction is the order applied to a sort field.
+type Direction string
+
+const (
+	// DirectionAsc sorts values in ascending order.
+	DirectionAsc Direction = "ASC"
+	// DirectionDesc sorts values in descending order.
+	DirectionDesc Direction = "DESC"
+)
+
+// Sort represents one validated sort field and its direction.
+type Sort struct {
+	Field     string
+	Direction Direction
+}
+
 // Filter is the output of parsing a struct or URL query.
-// It holds an ordered list of conditions plus pagination hints.
+// It holds ordered conditions, sorts, and pagination hints.
 // Adapters (GORM, SQL, etc.) accept *Filter and translate it to backend-specific queries.
 type Filter struct {
 	Conditions []Condition
-	Sort       []string
+	Sorts      []Sort
 	Limit      int
 	Offset     int
 }
@@ -43,6 +59,7 @@ type options struct {
 	tagName       string
 	allowUnknown  bool
 	allowedFields map[string]bool
+	allowedSorts  map[string]bool
 }
 
 func defaultOptions() *options {
@@ -50,5 +67,6 @@ func defaultOptions() *options {
 		tagName:       "filt",
 		allowUnknown:  false,
 		allowedFields: nil,
+		allowedSorts:  nil,
 	}
 }

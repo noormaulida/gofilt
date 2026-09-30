@@ -370,3 +370,41 @@ func TestApply_MultipleConditions(t *testing.T) {
 		t.Errorf("AND multi-cond: got %v want %v (active AND age>25)", got, want)
 	}
 }
+
+func TestApply_Sorts(t *testing.T) {
+	db := openDB(t)
+	f := &gofilt.Filter{
+		Sorts: []gofilt.Sort{
+			{Field: "age", Direction: gofilt.DirectionDesc},
+			{Field: "name", Direction: gofilt.DirectionAsc},
+		},
+	}
+
+	var results []testUser
+	if err := Apply(db, f).Find(&results).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got, want := ids(results), []int{5, 4, 2, 1, 3}; !equalInts(got, want) {
+		t.Errorf("sorted ids: got %v want %v", got, want)
+	}
+}
+
+func TestApply_SkipsUnsafeSorts(t *testing.T) {
+	db := dryDB(t)
+	f := &gofilt.Filter{
+		Sorts: []gofilt.Sort{
+			{Field: "name; DROP TABLE users", Direction: gofilt.DirectionAsc},
+			{Field: "age", Direction: gofilt.Direction("SIDEWAYS")},
+			{Field: "users.name", Direction: gofilt.DirectionAsc},
+		},
+	}
+
+	tx := Apply(db, f).Model(&testUser{}).Find(&[]testUser{})
+	sql := tx.Statement.SQL.String()
+	if strings.Contains(sql, "DROP TABLE") || strings.Contains(sql, "SIDEWAYS") {
+		t.Errorf("unsafe sort reached SQL: %s", sql)
+	}
+	if !strings.Contains(sql, "ORDER BY users.name ASC") {
+		t.Errorf("expected valid qualified sort in SQL, got: %s", sql)
+	}
+}

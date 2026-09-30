@@ -18,6 +18,9 @@ func TestDefaultOptions(t *testing.T) {
 	if opts.allowedFields != nil {
 		t.Errorf("expected default allowedFields nil, got %v", opts.allowedFields)
 	}
+	if opts.allowedSorts != nil {
+		t.Errorf("expected default allowedSorts nil, got %v", opts.allowedSorts)
+	}
 
 	// Tanpa whitelist, semua field harus diizinkan
 	if !opts.isAllowed("any_column") {
@@ -83,5 +86,29 @@ func TestWithAllowedFields_EmptyInput(t *testing.T) {
 
 	if opts.allowedFields != nil {
 		t.Errorf("expected allowedFields to remain nil on empty slice input")
+	}
+}
+
+func TestWithAllowedSorts(t *testing.T) {
+	opts := defaultOptions()
+	WithAllowedSorts("name", "created_at")(opts)
+
+	if !opts.isSortAllowed("name") || !opts.isSortAllowed("created_at") {
+		t.Errorf("expected configured sort fields to be allowed")
+	}
+	if opts.isSortAllowed("is_admin") {
+		t.Errorf("expected unknown sort field to be blocked")
+	}
+}
+
+func TestWithAllowedSorts_EmptyInput(t *testing.T) {
+	opts := defaultOptions()
+	WithAllowedSorts()(opts)
+
+	if opts.allowedSorts != nil {
+		t.Errorf("expected allowedSorts to remain nil on empty input")
+	}
+	if opts.isSortAllowed("name") {
+		t.Errorf("expected sorting to be disabled without a whitelist")
 	}
 }
