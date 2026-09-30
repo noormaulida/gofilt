@@ -28,11 +28,13 @@ var urlOpMap = map[string]Operator{
 //
 //	limit=<int>  -> sets Filter.Limit
 //	offset=<int> -> sets Filter.Offset (alias "page" also works)
+//	sort=name,-created_at -> appends allowed ascending/descending sorts
 //
 // Values containing commas are automatically split into a slice and the
 // operator is forced to OpIn, unless the operator was already set to OpIn.
 //
-// Empty values and empty query keys are ignored.
+// Empty values and empty query keys are ignored. Sort fields are ignored
+// unless explicitly whitelisted with WithAllowedSorts.
 func FromURL(values url.Values, opts ...Option) (*Filter, error) {
 	cfg := defaultOptions()
 	for _, opt := range opts {
@@ -55,6 +57,12 @@ func FromURL(values url.Values, opts ...Option) (*Filter, error) {
 		if key == "offset" || key == "page" {
 			if o, err := strconv.Atoi(valList[0]); err == nil {
 				filter.Offset = o
+			}
+			continue
+		}
+		if key == "sort" {
+			for _, value := range valList {
+				filter.Sorts = append(filter.Sorts, parseSorts(value, cfg)...)
 			}
 			continue
 		}
@@ -100,4 +108,27 @@ func parseURLKey(key string) (string, Operator) {
 	}
 
 	return key, OpEq
+}
+
+func parseSorts(value string, cfg *options) []Sort {
+	var sorts []Sort
+	for _, raw := range strings.Split(value, ",") {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+
+		direction := DirectionAsc
+		field := raw
+		if strings.HasPrefix(raw, "-") {
+			direction = DirectionDesc
+			field = strings.TrimSpace(strings.TrimPrefix(raw, "-"))
+		}
+
+		if field == "" || !cfg.isSortAllowed(field) {
+			continue
+		}
+		sorts = append(sorts, Sort{Field: field, Direction: direction})
+	}
+	return sorts
 }

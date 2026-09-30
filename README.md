@@ -28,6 +28,8 @@
 - Parse filters from Go structs via reflection (`FromStruct`)
 - Parse filters from `url.Values` / HTTP query string (`FromURL`)
 - Whitelist allowed fields with `WithAllowedFields`
+- Multi-field sorting with `sort=name,-created_at`
+- Whitelist sortable fields with `WithAllowedSorts`
 - Custom struct tag name with `WithTagName`
 - 10 operators: `=`, `!=`, `>`, `>=`, `<`, `<=`, `LIKE`, `ILIKE`, `IN`, `BETWEEN`
 - Zero dependencies for the core module
@@ -86,12 +88,22 @@ import (
 func handler(w http.ResponseWriter, r *http.Request) {
     filter, _ := gofilt.FromURL(r.URL.Query(),
         gofilt.WithAllowedFields("name", "age", "status"),
+        gofilt.WithAllowedSorts("name", "created_at"),
     )
-    // Query string: ?name[ilike]=Budi&age[gte]=20&status=active&limit=10&offset=20
+    // Query string:
+    // ?name[ilike]=Budi&age[gte]=20&sort=name,-created_at&limit=10&offset=20
     _ = filter.Limit  // 10
     _ = filter.Offset // 20
+    // filter.Sorts = [
+    //   {Field: "name",       Direction: "ASC"},
+    //   {Field: "created_at", Direction: "DESC"},
+    // ]
 }
 ```
+
+Sorting is disabled until `WithAllowedSorts` is configured. Unknown sort
+fields are ignored, preventing query parameters from becoming arbitrary SQL
+identifiers.
 
 Supported URL syntax:
 
@@ -108,6 +120,8 @@ Supported URL syntax:
 | `name[ilike]=bud` | `ILIKE` |
 | `id[in]=1,2,3` | `IN` (auto-split comma) |
 | `status=active,pending` | `IN` (auto-detect comma) |
+| `sort=name` | Sort by `name` ascending |
+| `sort=name,-created_at` | Sort by `name` ascending, then `created_at` descending |
 | `limit=10` | Pagination |
 | `offset=20` or `page=20` | Pagination |
 
@@ -119,6 +133,7 @@ import gofiltgorm "github.com/noormaulida/gofilt/adapter/gorm"
 var users []User
 db := gofiltgorm.Apply(tx, filter)
 db.Find(&users)
+// Adds ORDER BY name ASC, created_at DESC when filter.Sorts is populated.
 ```
 
 ### Build SQL for `database/sql`
@@ -127,9 +142,14 @@ db.Find(&users)
 import gofiltsql "github.com/noormaulida/gofilt/adapter/sql"
 
 where, args := gofiltsql.BuildWHERE(filter)
+orderBy := gofiltsql.BuildORDER(filter)
 // where = "WHERE name ILIKE $1 AND age >= $2"
 // args  = ["%Budi%", 20]
-rows, _ := db.QueryContext(ctx, "SELECT * FROM users "+where, args...)
+// orderBy = "ORDER BY name ASC, created_at DESC"
+rows, _ := db.QueryContext(ctx,
+    "SELECT * FROM users "+where+" "+orderBy,
+    args...,
+)
 ```
 
 ## Options
@@ -139,6 +159,7 @@ rows, _ := db.QueryContext(ctx, "SELECT * FROM users "+where, args...)
 | `WithTagName(name string)` | Override default struct tag (`"filt"`) |
 | `WithAllowUnknown(bool)` | Reserved for future URL-parser strict mode |
 | `WithAllowedFields(...string)` | Whitelist-only mode — drop any field not in the list |
+| `WithAllowedSorts(...string)` | Allow sorting only by listed fields; unknown fields are ignored |
 
 ## Struct Tag Format
 
@@ -163,13 +184,13 @@ gofilt/
 ├── parser_struct.go       # FromStruct — reflect-based struct parser
 ├── parser_url.go          # FromURL — url.Values parser
 ├── adapter/
-│   ├── gorm/              # gofiltgorm.Apply(*gorm.DB, *Filter)
-│   └── sql/               # gofiltsql.BuildWHERE(*Filter) (Postgres $N style)
+│   ├── gorm/              # Apply filters, sorting, and pagination to GORM
+│   └── sql/               # Build WHERE and ORDER BY clauses
 ├── go.mod                 # Single module — one `go get` covers all packages
 └── *_test.go              # Unit tests
 ```
 
-Note: All packages (core + adapters) are part of one Go module. Adapter import paths stay `github.com/noormaulida/gofilt/adapter/gorm` and `.../adapter/sql` — publishing requires only one release tag `vX.Y.Z` for everything at once.
+Note: Core and adapters are released together under the same version.
 
 ## Running Tests
 

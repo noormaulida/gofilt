@@ -2,10 +2,13 @@ package gofiltsql
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/noormaulida/gofilt"
 )
+
+var safeSortField = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$`)
 
 // BuildWHERE serializes f into a WHERE clause using PostgreSQL-style
 // numbered placeholders ($1, $2, ...). Multiple conditions are joined with
@@ -38,4 +41,27 @@ func BuildWHERE(f *gofilt.Filter) (string, []any) {
 	}
 
 	return "WHERE " + strings.Join(clauses, " AND "), args
+}
+
+// BuildORDER serializes validated sorts into an ORDER BY clause. Sorts retain
+// their input order. Invalid identifiers and directions are omitted so raw
+// SQL cannot be introduced through a manually constructed Filter.
+//
+// When Filter.Sorts is empty or contains no valid sorts, BuildORDER returns
+// an empty string.
+func BuildORDER(f *gofilt.Filter) string {
+	orders := make([]string, 0, len(f.Sorts))
+	for _, sort := range f.Sorts {
+		if !safeSortField.MatchString(sort.Field) {
+			continue
+		}
+		switch sort.Direction {
+		case gofilt.DirectionAsc, gofilt.DirectionDesc:
+			orders = append(orders, fmt.Sprintf("%s %s", sort.Field, sort.Direction))
+		}
+	}
+	if len(orders) == 0 {
+		return ""
+	}
+	return "ORDER BY " + strings.Join(orders, ", ")
 }

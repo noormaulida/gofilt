@@ -43,9 +43,29 @@ func WithAllowedFields(fields ...string) Option {
 	}
 }
 
+// WithAllowedSorts restricts the fields that FromURL may use for sorting.
+// Sort parameters are ignored unless this option is configured. Unknown sort
+// fields are silently dropped. Call with no arguments is a no-op.
+func WithAllowedSorts(fields ...string) Option {
+	return func(o *options) {
+		if len(fields) == 0 {
+			return
+		}
+		allowed := make(map[string]bool, len(fields))
+		for _, f := range fields {
+			allowed[f] = true
+		}
+		o.allowedSorts = allowed
+	}
+}
+
 func (o *options) isAllowed(field string) bool {
 	if o.allowedFields == nil {
 		return true
 	}
 	return o.allowedFields[field]
+}
+
+func (o *options) isSortAllowed(field string) bool {
+	return o.allowedSorts != nil && o.allowedSorts[field]
 }

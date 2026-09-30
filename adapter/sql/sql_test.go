@@ -136,3 +136,36 @@ func TestBuildWHERE_BetweenOperator_Passthrough(t *testing.T) {
 		t.Errorf("args mismatch: got %v, want %v", args[0], rangeVal)
 	}
 }
+
+func TestBuildORDER(t *testing.T) {
+	f := &gofilt.Filter{
+		Sorts: []gofilt.Sort{
+			{Field: "name", Direction: gofilt.DirectionAsc},
+			{Field: "users.created_at", Direction: gofilt.DirectionDesc},
+		},
+	}
+
+	got := BuildORDER(f)
+	want := "ORDER BY name ASC, users.created_at DESC"
+	if got != want {
+		t.Errorf("order clause mismatch: got %q, want %q", got, want)
+	}
+}
+
+func TestBuildORDER_SkipsUnsafeSorts(t *testing.T) {
+	f := &gofilt.Filter{
+		Sorts: []gofilt.Sort{
+			{Field: "name; DROP TABLE users", Direction: gofilt.DirectionAsc},
+			{Field: "age", Direction: gofilt.Direction("SIDEWAYS")},
+		},
+	}
+	if got := BuildORDER(f); got != "" {
+		t.Errorf("expected no clause for invalid sorts, got %q", got)
+	}
+}
+
+func TestBuildORDER_Empty(t *testing.T) {
+	if got := BuildORDER(&gofilt.Filter{}); got != "" {
+		t.Errorf("expected empty clause, got %q", got)
+	}
+}

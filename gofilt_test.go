@@ -33,7 +33,9 @@ func TestFilterStructInitialization(t *testing.T) {
 		Conditions: []Condition{
 			{Field: "status", Operator: OpEq, Value: "active"},
 		},
-		Sort:   []string{"created_at DESC"},
+		Sorts: []Sort{
+			{Field: "created_at", Direction: DirectionDesc},
+		},
 		Limit:  10,
 		Offset: 0,
 	}
@@ -50,7 +52,18 @@ func TestFilterStructInitialization(t *testing.T) {
 		t.Errorf("expected limit 10, got %d", filter.Limit)
 	}
 
-	if len(filter.Sort) != 1 || filter.Sort[0] != "created_at DESC" {
+	if len(filter.Sorts) != 1 ||
+		filter.Sorts[0].Field != "created_at" ||
+		filter.Sorts[0].Direction != DirectionDesc {
 		t.Errorf("unexpected sort configuration")
+	}
+}
+
+func TestDirectionConstants(t *testing.T) {
+	if DirectionAsc != "ASC" {
+		t.Errorf("expected ASC, got %q", DirectionAsc)
+	}
+	if DirectionDesc != "DESC" {
+		t.Errorf("expected DESC, got %q", DirectionDesc)
 	}
 }

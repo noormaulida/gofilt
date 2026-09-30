@@ -133,3 +133,47 @@ func TestFromURL_EmptyValuesSkipped(t *testing.T) {
 		t.Errorf("expected limit/offset zero, got limit=%d offset=%d", filter.Limit, filter.Offset)
 	}
 }
+
+func TestFromURL_Sorts(t *testing.T) {
+	queryParams := url.Values{
+		"sort": []string{"name,-created_at", " updated_at "},
+	}
+
+	filter, err := FromURL(queryParams,
+		WithAllowedSorts("name", "created_at", "updated_at"),
+	)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	want := []Sort{
+		{Field: "name", Direction: DirectionAsc},
+		{Field: "created_at", Direction: DirectionDesc},
+		{Field: "updated_at", Direction: DirectionAsc},
+	}
+	if !reflect.DeepEqual(filter.Sorts, want) {
+		t.Errorf("sorts mismatch: got %+v, want %+v", filter.Sorts, want)
+	}
+}
+
+func TestFromURL_SortsRequireWhitelist(t *testing.T) {
+	filter, err := FromURL(url.Values{
+		"sort": []string{"name,-created_at,, -,unknown"},
+	}, WithAllowedSorts("name"))
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	want := []Sort{{Field: "name", Direction: DirectionAsc}}
+	if !reflect.DeepEqual(filter.Sorts, want) {
+		t.Errorf("expected only allowed sort, got %+v", filter.Sorts)
+	}
+
+	disabled, err := FromURL(url.Values{"sort": []string{"name"}})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(disabled.Sorts) != 0 {
+		t.Errorf("expected sorting disabled without WithAllowedSorts, got %+v", disabled.Sorts)
+	}
+}
