@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="https://skillicons.dev/icons?i=go" alt="Go" />
+  <img src="https://skillicons.dev/icons?i=go" alt="Go" width="80" />
 </p>
 
-<div align="center">
-  <h1 class="h1">gofilt</h1>
-</div>
+<p align="center">
+  <img src=".github/gofilt.svg" alt="gofilt" width="200" />
+</p>
 
 <p align="center">
   Lightweight, type-safe filter builder for Go.
@@ -138,8 +138,8 @@ Supported URL syntax:
 | `age[gte]=21` | `>=` |
 | `age[lt]=100` | `<` |
 | `age[lte]=99` | `<=` |
-| `name[like]=bud` | `LIKE` |
-| `name[ilike]=bud` | `ILIKE` |
+| `name[like]=noo` | `LIKE` |
+| `name[ilike]=noo` | `ILIKE` |
 | `id[in]=1,2,3` | `IN` (auto-split comma) |
 | `status=active,pending` | `IN` (auto-detect comma) |
 | `deleted_at[null]=true` | `IS NULL` (`isnull`, `is_null`, `is` are aliases; value is ignored) |
@@ -151,6 +151,28 @@ Supported URL syntax:
 | `offset=20` or `page=20` | Pagination offset |
 
 Negative or non-integer values for `limit`, `offset`, or `page` return `ErrInvalidLimit` or `ErrInvalidOffset` deterministically.
+
+### Typed URL values
+
+Query values are strings until `WithFieldTypes` says otherwise. `FieldTypesFrom` reads column types from a query struct so the URL parser and the struct parser agree.
+
+```go
+type UserQuery struct {
+    Age    int       `filt:"col:age;op:gte"`
+    Active bool      `filt:"col:active"`
+    Since  time.Time `filt:"col:created_at;op:gte"`
+}
+
+filter, err := gofilt.FromURL(r.URL.Query(),
+    gofilt.WithFieldTypes(gofilt.FieldTypesFrom(UserQuery{})),
+)
+// ?age[gte]=20&active=true&created_at[gte]=2026-01-02T15:04:05Z
+// Values are int(20), bool(true), and time.Time — not strings.
+```
+
+Supported types: `string`, `int`, `int8`, `int16`, `int32`, `int64`, `uint`, `uint64`, `float32`, `float64`, `bool`, and `time.Time`.
+
+`IN` lists are converted element by element (`id[in]=1,2,3` with an `int` field becomes `[]int`). Accepted time layouts are RFC3339 (with optional fractional seconds), `2006-01-02 15:04:05`, and `2006-01-02`. A value that does not match its field type returns `ErrInvalidValue`. Fields without a registered type stay strings. `IS NULL` and `IS NOT NULL` values are not converted.
 
 ### Pagination & Metadata
 
@@ -203,6 +225,7 @@ rows, _ := db.QueryContext(ctx,
 | `WithAllowedSorts(...string)` | Allow sorting only by listed fields; unknown fields are ignored |
 | `WithDefaultLimit(limit int)` | Fallback limit when no limit is provided in input |
 | `WithMaxLimit(max int)` | Cap the maximum allowed limit to guard against large queries |
+| `WithFieldTypes(map[string]reflect.Type)` | Parse URL values into the listed Go types; omitted fields stay strings |
 
 ## Struct Tag Format
 
@@ -227,6 +250,7 @@ gofilt/
 ├── options.go             # Option constructors + defaultOptions
 ├── parser_struct.go       # FromStruct — reflect-based struct parser
 ├── parser_url.go          # FromURL — url.Values parser
+├── value.go               # FieldTypesFrom and URL value conversion
 ├── adapter/
 │   ├── gorm/              # Apply filters, sorting, and pagination to GORM
 │   └── sql/               # Build WHERE and ORDER BY clauses

@@ -1,6 +1,7 @@
 package gofilt
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -113,6 +114,25 @@ func TestWithAllowedSorts_EmptyInput(t *testing.T) {
 	}
 }
 
+func TestWithFieldTypes(t *testing.T) {
+	opts := defaultOptions()
+	WithFieldTypes(nil)(opts)
+	if opts.fieldTypes != nil {
+		t.Fatalf("nil map should be a no-op")
+	}
+	WithFieldTypes(map[string]reflect.Type{})(opts)
+	if opts.fieldTypes != nil {
+		t.Fatalf("empty map should be a no-op")
+	}
+
+	src := map[string]reflect.Type{"age": reflect.TypeOf(int(0))}
+	WithFieldTypes(src)(opts)
+	src["age"] = reflect.TypeOf("")
+	if opts.fieldTypes["age"] != reflect.TypeOf(int(0)) {
+		t.Fatalf("option should copy the type map, got %v", opts.fieldTypes["age"])
+	}
+}
+
 func TestWithDefaultLimit(t *testing.T) {
 	opts := defaultOptions()
 	WithDefaultLimit(25)(opts)
@@ -188,4 +208,3 @@ func TestOptions_ResolveLimit(t *testing.T) {
 		t.Errorf("resolveLimit defaultLimit clamped to maxLimit: got %d, want 100", got)
 	}
 }
-

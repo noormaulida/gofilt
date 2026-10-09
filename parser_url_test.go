@@ -1,9 +1,11 @@
 package gofilt
 
 import (
+	"errors"
 	"net/url"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestFromURL_OperatorsAndPagination(t *testing.T) {
@@ -118,6 +120,56 @@ func TestFromURL_NullOperatorDoesNotSplitCommas(t *testing.T) {
 	}
 	if cond.Value != "true,false" {
 		t.Errorf("null operator should keep the raw value, got %v", cond.Value)
+	}
+}
+
+func TestFromURL_FieldTypes(t *testing.T) {
+	queryParams := url.Values{
+		"age[gte]":         []string{"20"},
+		"active":           []string{"true"},
+		"created_at[gte]":  []string{"2026-01-02T15:04:05Z"},
+		"id[in]":           []string{"1,2,3"},
+		"name":             []string{"Noor"},
+		"deleted_at[null]": []string{"true"},
+	}
+	types := FieldTypesFrom(valueQuery{})
+	types["id"] = reflect.TypeOf(int(0))
+	types["deleted_at"] = reflect.TypeOf(false)
+	filter, err := FromURL(queryParams, WithFieldTypes(types))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]Condition{}
+	for _, cond := range filter.Conditions {
+		got[cond.Field] = cond
+	}
+	if got["age"].Value != int(20) || got["age"].Operator != OpGte {
+		t.Fatalf("age: %#v", got["age"])
+	}
+	if got["active"].Value != true {
+		t.Fatalf("active: %#v", got["active"])
+	}
+	wantTime, _ := time.Parse(time.RFC3339, "2026-01-02T15:04:05Z")
+	if !got["created_at"].Value.(time.Time).Equal(wantTime) {
+		t.Fatalf("created_at: %#v", got["created_at"].Value)
+	}
+	if !reflect.DeepEqual(got["id"].Value, []int{1, 2, 3}) {
+		t.Fatalf("id: %#v", got["id"].Value)
+	}
+	if got["name"].Value != "Noor" {
+		t.Fatalf("untyped name should stay a string, got %#v", got["name"].Value)
+	}
+	if got["deleted_at"].Operator != OpIsNull || got["deleted_at"].Value != "true" {
+		t.Fatalf("null operator should keep the raw value, got %#v", got["deleted_at"])
+	}
+}
+
+func TestFromURL_FieldTypesInvalid(t *testing.T) {
+	_, err := FromURL(url.Values{"age": []string{"twenty"}}, WithFieldTypes(map[string]reflect.Type{
+		"age": reflect.TypeOf(int(0)),
+	}))
+	if !errors.Is(err, ErrInvalidValue) {
+		t.Fatalf("expected ErrInvalidValue, got %v", err)
 	}
 }
 

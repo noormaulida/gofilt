@@ -1,6 +1,9 @@
 package gofilt
 
-import "errors"
+import (
+	"errors"
+	"reflect"
+)
 
 var (
 	// ErrInvalidLimit is returned when a limit parameter cannot be parsed or is negative.
@@ -8,6 +11,10 @@ var (
 
 	// ErrInvalidOffset is returned when an offset or page parameter cannot be parsed or is negative.
 	ErrInvalidOffset = errors.New("gofilt: invalid offset")
+
+	// ErrInvalidValue is returned when a URL value cannot be converted to the
+	// type registered for its field with WithFieldTypes.
+	ErrInvalidValue = errors.New("gofilt: invalid value")
 )
 
 // Operator is the comparison operator applied to a filter condition.
@@ -74,6 +81,7 @@ type options struct {
 	allowedSorts  map[string]bool
 	defaultLimit  int
 	maxLimit      int
+	fieldTypes    map[string]reflect.Type
 }
 
 func defaultOptions() *options {
