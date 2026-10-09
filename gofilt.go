@@ -15,16 +15,18 @@ var (
 type Operator string
 
 const (
-	OpEq      Operator = "="
-	OpNe      Operator = "!="
-	OpGt      Operator = ">"
-	OpGte     Operator = ">="
-	OpLt      Operator = "<"
-	OpLte     Operator = "<="
-	OpLike    Operator = "LIKE"
-	OpILike   Operator = "ILIKE"
-	OpIn      Operator = "IN"
-	OpBetween Operator = "BETWEEN"
+	OpEq        Operator = "="
+	OpNe        Operator = "!="
+	OpGt        Operator = ">"
+	OpGte       Operator = ">="
+	OpLt        Operator = "<"
+	OpLte       Operator = "<="
+	OpLike      Operator = "LIKE"
+	OpILike     Operator = "ILIKE"
+	OpIn        Operator = "IN"
+	OpBetween   Operator = "BETWEEN"
+	OpIsNull    Operator = "IS NULL"
+	OpIsNotNull Operator = "IS NOT NULL"
 )
 
 // Condition represents a single filter predicate: Field Operator Value.

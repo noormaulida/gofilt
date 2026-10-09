@@ -22,6 +22,7 @@ var safeSortField = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za
 // operators pass the value through unchanged. OpIn and OpBetween values are
 // passed as-is; callers that need placeholders expanded for these operators
 // should pre-process Condition.Value or handle it separately.
+// IS NULL and IS NOT NULL emit no placeholder and add no argument.
 func BuildWHERE(f *gofilt.Filter) (string, []any) {
 	if len(f.Conditions) == 0 {
 		return "", nil
@@ -29,9 +30,16 @@ func BuildWHERE(f *gofilt.Filter) (string, []any) {
 
 	var clauses []string
 	var args []any
+	n := 1
 
-	for i, cond := range f.Conditions {
-		clauses = append(clauses, fmt.Sprintf("%s %s $%d", cond.Field, cond.Operator, i+1))
+	for _, cond := range f.Conditions {
+		if cond.Operator == gofilt.OpIsNull || cond.Operator == gofilt.OpIsNotNull {
+			clauses = append(clauses, fmt.Sprintf("%s %s", cond.Field, cond.Operator))
+			continue
+		}
+
+		clauses = append(clauses, fmt.Sprintf("%s %s $%d", cond.Field, cond.Operator, n))
+		n++
 
 		if cond.Operator == gofilt.OpLike || cond.Operator == gofilt.OpILike {
 			args = append(args, fmt.Sprintf("%%%v%%", cond.Value))

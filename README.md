@@ -36,7 +36,7 @@
 - Deterministic pagination validation with `ErrInvalidLimit` and `ErrInvalidOffset`
 - Pagination metadata helper with `filter.Pagination()`, `Page()`, `NextOffset()`, `PreviousOffset()`
 - Custom struct tag name with `WithTagName`
-- 10 operators: `=`, `!=`, `>`, `>=`, `<`, `<=`, `LIKE`, `ILIKE`, `IN`, `BETWEEN`
+- 12 operators: `=`, `!=`, `>`, `>=`, `<`, `<=`, `LIKE`, `ILIKE`, `IN`, `BETWEEN`, `IS NULL`, `IS NOT NULL`
 - Zero dependencies for the core module
 - Optional adapters: GORM and plain SQL (PostgreSQL-style `$N` placeholders)
 
@@ -142,6 +142,9 @@ Supported URL syntax:
 | `name[ilike]=bud` | `ILIKE` |
 | `id[in]=1,2,3` | `IN` (auto-split comma) |
 | `status=active,pending` | `IN` (auto-detect comma) |
+| `deleted_at[null]=true` | `IS NULL` (`isnull`, `is_null`, `is` are aliases; value is ignored) |
+| `deleted_at[is]=null` | `IS NULL` |
+| `deleted_at[notnull]=true` | `IS NOT NULL` (`isnotnull`, `not_null`, `is_not_null` are aliases) |
 | `sort=name` | Sort by `name` ascending |
 | `sort=name,-created_at` | Sort by `name` ascending, then `created_at` descending |
 | `limit=10` | Pagination limit (defaults with `WithDefaultLimit`, capped by `WithMaxLimit`) |

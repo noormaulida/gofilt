@@ -108,6 +108,34 @@ type QueryBadOp struct {
 	Name string `filt:"col:name;op:thisisnotrealop"`
 }
 
+type QueryNullOps struct {
+	Deleted   bool `filt:"col:deleted_at;op:null"`
+	Published bool `filt:"col:published_at;op:notnull"`
+}
+
+func TestFromStruct_NullOperators(t *testing.T) {
+	req := QueryNullOps{Deleted: true, Published: true}
+
+	filter, err := FromStruct(req)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(filter.Conditions) != 2 {
+		t.Fatalf("expected 2 conditions, got %d", len(filter.Conditions))
+	}
+
+	got := map[string]Operator{}
+	for _, cond := range filter.Conditions {
+		got[cond.Field] = cond.Operator
+	}
+	if got["deleted_at"] != OpIsNull {
+		t.Errorf("op:null: got %q", got["deleted_at"])
+	}
+	if got["published_at"] != OpIsNotNull {
+		t.Errorf("op:notnull: got %q", got["published_at"])
+	}
+}
+
 func TestFromStruct_UnknownOperatorDefaultsToEq(t *testing.T) {
 	req := QueryBadOp{Name: "Test"}
 

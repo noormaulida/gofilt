@@ -7,16 +7,24 @@ import (
 )
 
 var urlOpMap = map[string]Operator{
-	"eq":      OpEq,
-	"ne":      OpNe,
-	"gt":      OpGt,
-	"gte":     OpGte,
-	"lt":      OpLt,
-	"lte":     OpLte,
-	"like":    OpLike,
-	"ilike":   OpILike,
-	"in":      OpIn,
-	"between": OpBetween,
+	"eq":          OpEq,
+	"ne":          OpNe,
+	"gt":          OpGt,
+	"gte":         OpGte,
+	"lt":          OpLt,
+	"lte":         OpLte,
+	"like":        OpLike,
+	"ilike":       OpILike,
+	"in":          OpIn,
+	"between":     OpBetween,
+	"null":        OpIsNull,
+	"isnull":      OpIsNull,
+	"is_null":     OpIsNull,
+	"is":          OpIsNull,
+	"notnull":     OpIsNotNull,
+	"isnotnull":   OpIsNotNull,
+	"not_null":    OpIsNotNull,
+	"is_not_null": OpIsNotNull,
 }
 
 // FromURL parses an HTTP query string (url.Values) into a Filter.
@@ -101,7 +109,7 @@ func FromURL(values url.Values, opts ...Option) (*Filter, error) {
 		}
 
 		var parsedVal any = val
-		if op == OpIn || strings.Contains(val, ",") {
+		if op != OpIsNull && op != OpIsNotNull && (op == OpIn || strings.Contains(val, ",")) {
 			parts := strings.Split(val, ",")
 			if len(parts) > 1 {
 				op = OpIn

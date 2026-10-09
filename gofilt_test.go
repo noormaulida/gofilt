@@ -19,6 +19,8 @@ func TestOperatorConstants(t *testing.T) {
 		{OpILike, "ILIKE"},
 		{OpIn, "IN"},
 		{OpBetween, "BETWEEN"},
+		{OpIsNull, "IS NULL"},
+		{OpIsNotNull, "IS NOT NULL"},
 	}
 
 	for _, tt := range tests {

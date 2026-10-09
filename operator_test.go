@@ -25,6 +25,15 @@ func TestLookupOperator_WordAliases(t *testing.T) {
 		{"in", OpIn, true},
 		{"between", OpBetween, true},
 		{"BETWEEN", OpBetween, true},
+		{"null", OpIsNull, true},
+		{"isnull", OpIsNull, true},
+		{"is_null", OpIsNull, true},
+		{"is", OpIsNull, true},
+		{"notnull", OpIsNotNull, true},
+		{"isnotnull", OpIsNotNull, true},
+		{"not_null", OpIsNotNull, true},
+		{"is_not_null", OpIsNotNull, true},
+		{"IS NOT NULL", "", false},
 	}
 
 	for _, tt := range tests {
@@ -115,6 +124,7 @@ func TestLookupOperator_Invalid(t *testing.T) {
 func TestIsKnownOperator(t *testing.T) {
 	known := []string{
 		"eq", "EQ", "!=", "==", "<>", ">=", "<=", "like", "ilike", "in", "between",
+		"null", "isnull", "is", "notnull", "is_not_null",
 	}
 	for _, k := range known {
 		if !IsKnownOperator(k) {
