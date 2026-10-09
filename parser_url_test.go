@@ -76,6 +76,51 @@ func TestFromURL_WithAllowedFields(t *testing.T) {
 	}
 }
 
+func TestFromURL_NullOperators(t *testing.T) {
+	queryParams := url.Values{
+		"deleted_at[null]":      []string{"true"},
+		"archived_at[is]":       []string{"null"},
+		"published_at[notnull]": []string{"true"},
+	}
+
+	filter, err := FromURL(queryParams)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	got := map[string]Operator{}
+	for _, cond := range filter.Conditions {
+		got[cond.Field] = cond.Operator
+	}
+	if got["deleted_at"] != OpIsNull {
+		t.Errorf("deleted_at[null]: got %q", got["deleted_at"])
+	}
+	if got["archived_at"] != OpIsNull {
+		t.Errorf("archived_at[is]: got %q", got["archived_at"])
+	}
+	if got["published_at"] != OpIsNotNull {
+		t.Errorf("published_at[notnull]: got %q", got["published_at"])
+	}
+}
+
+func TestFromURL_NullOperatorDoesNotSplitCommas(t *testing.T) {
+	queryParams := url.Values{
+		"deleted_at[null]": []string{"true,false"},
+	}
+
+	filter, err := FromURL(queryParams)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	cond := filter.Conditions[0]
+	if cond.Operator != OpIsNull {
+		t.Errorf("expected OpIsNull, got %v", cond.Operator)
+	}
+	if cond.Value != "true,false" {
+		t.Errorf("null operator should keep the raw value, got %v", cond.Value)
+	}
+}
+
 func TestFromURL_UnknownBracketOperatorDefaultsToEq(t *testing.T) {
 	queryParams := url.Values{
 		"name[wedonthaveop]": []string{"alice"},
@@ -323,4 +368,3 @@ func TestFromURL_OffsetAndPageInteraction(t *testing.T) {
 		t.Errorf("expected ErrInvalidOffset for invalid page alongside valid offset, got %v", err)
 	}
 }
-

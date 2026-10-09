@@ -22,10 +22,13 @@ var safeSortField = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za
 //	IN            -> value slice is expanded by GORM's IN (?) syntax
 //	BETWEEN       -> value is unpacked: slice/array of len 2 becomes two args;
 //	                 any other value form is passed as-is to BETWEEN ? AND ?
+//	IS NULL / IS NOT NULL -> no bound value
 //	others (=, !=, >, >=, <, <=)  -> raw parameterized condition
 func Apply(db *gorm.DB, f *gofilt.Filter) *gorm.DB {
 	for _, cond := range f.Conditions {
 		switch cond.Operator {
+		case gofilt.OpIsNull, gofilt.OpIsNotNull:
+			db = db.Where(fmt.Sprintf("%s %s", cond.Field, cond.Operator))
 		case gofilt.OpLike, gofilt.OpILike:
 			query := fmt.Sprintf("%s %s ?", cond.Field, cond.Operator)
 			db = db.Where(query, fmt.Sprintf("%%%v%%", cond.Value))

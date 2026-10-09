@@ -137,6 +137,25 @@ func TestBuildWHERE_BetweenOperator_Passthrough(t *testing.T) {
 	}
 }
 
+func TestBuildWHERE_NullOperators(t *testing.T) {
+	f := &gofilt.Filter{
+		Conditions: []gofilt.Condition{
+			{Field: "deleted_at", Operator: gofilt.OpIsNull, Value: "true"},
+			{Field: "status", Operator: gofilt.OpEq, Value: "active"},
+			{Field: "published_at", Operator: gofilt.OpIsNotNull, Value: true},
+		},
+	}
+
+	where, args := BuildWHERE(f)
+	want := "WHERE deleted_at IS NULL AND status = $1 AND published_at IS NOT NULL"
+	if where != want {
+		t.Errorf("clause mismatch: got %q, want %q", where, want)
+	}
+	if len(args) != 1 || args[0] != "active" {
+		t.Errorf("expected one bound arg [active], got %v", args)
+	}
+}
+
 func TestBuildORDER(t *testing.T) {
 	f := &gofilt.Filter{
 		Sorts: []gofilt.Sort{

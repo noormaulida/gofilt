@@ -304,6 +304,28 @@ func TestApply_BetweenOperator_NilFallback(t *testing.T) {
 	}
 }
 
+func TestApply_NullOperators(t *testing.T) {
+	db := dryDB(t)
+	f := &gofilt.Filter{
+		Conditions: []gofilt.Condition{
+			{Field: "deleted_at", Operator: gofilt.OpIsNull, Value: true},
+			{Field: "published_at", Operator: gofilt.OpIsNotNull, Value: true},
+		},
+	}
+
+	tx := Apply(db, f).Model(&testUser{}).Find(&[]testUser{})
+	sql := tx.Statement.SQL.String()
+	if !strings.Contains(sql, "deleted_at IS NULL") {
+		t.Errorf("expected IS NULL clause, got: %s", sql)
+	}
+	if !strings.Contains(sql, "published_at IS NOT NULL") {
+		t.Errorf("expected IS NOT NULL clause, got: %s", sql)
+	}
+	if strings.Contains(sql, "?") {
+		t.Errorf("null operators should not bind a value, got: %s", sql)
+	}
+}
+
 func TestApply_LimitAndOffset(t *testing.T) {
 	db := openDB(t)
 	f := &gofilt.Filter{

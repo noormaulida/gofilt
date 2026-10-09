@@ -3,16 +3,24 @@ package gofilt
 import "strings"
 
 var operatorAliases = map[string]Operator{
-	"eq":      OpEq,
-	"ne":      OpNe,
-	"gt":      OpGt,
-	"gte":     OpGte,
-	"lt":      OpLt,
-	"lte":     OpLte,
-	"like":    OpLike,
-	"ilike":   OpILike,
-	"in":      OpIn,
-	"between": OpBetween,
+	"eq":          OpEq,
+	"ne":          OpNe,
+	"gt":          OpGt,
+	"gte":         OpGte,
+	"lt":          OpLt,
+	"lte":         OpLte,
+	"like":        OpLike,
+	"ilike":       OpILike,
+	"in":          OpIn,
+	"between":     OpBetween,
+	"null":        OpIsNull,
+	"isnull":      OpIsNull,
+	"is_null":     OpIsNull,
+	"is":          OpIsNull,
+	"notnull":     OpIsNotNull,
+	"isnotnull":   OpIsNotNull,
+	"not_null":    OpIsNotNull,
+	"is_not_null": OpIsNotNull,
 }
 
 var symbolAliases = map[string]Operator{
@@ -30,7 +38,8 @@ var symbolAliases = map[string]Operator{
 // to its Operator constant. The input is trimmed and lowercased before lookup.
 // The second return value is false when the input is empty or unrecognized.
 //
-// Recognized word aliases: eq, ne, gt, gte, lt, lte, like, ilike, in, between.
+// Recognized word aliases: eq, ne, gt, gte, lt, lte, like, ilike, in, between,
+// null, isnull, is_null, is, notnull, isnotnull, not_null, is_not_null.
 // Recognized symbol aliases: =, ==, !=, <>, >, >=, <, <=.
 func LookupOperator(name string) (Operator, bool) {
 	key := strings.ToLower(strings.TrimSpace(name))
