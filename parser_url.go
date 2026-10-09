@@ -38,6 +38,9 @@ var urlOpMap = map[string]Operator{
 //	offset=<int> -> sets Filter.Offset
 //	page=<int>   -> sets Filter.Offset (alias for offset)
 //	sort=name,-created_at -> appends allowed ascending/descending sorts
+//	or.<field>[op]=value  -> adds the predicate to one OR group under the root AND
+//	or.<n>.<field>[op]=value -> adds the predicate to indexed OR group n
+//	and.<n>.<field>[op]=value -> adds the predicate to indexed AND group n
 //
 // Negative limit or offset values return ErrInvalidLimit or ErrInvalidOffset.
 //
@@ -50,6 +53,10 @@ var urlOpMap = map[string]Operator{
 // URL values stay strings unless WithFieldTypes registers a type for the
 // column. Registered values are parsed before the condition is appended.
 // A value that does not match its registered type returns ErrInvalidValue.
+//
+// Keys prefixed with or. or and. build Filter.Expr. Other fields stay an
+// implicit AND in Filter.Conditions. A query with no grouped keys leaves
+// Expr nil.
 func FromURL(values url.Values, opts ...Option) (*Filter, error) {
 	cfg := defaultOptions()
 	for _, opt := range opts {
@@ -89,8 +96,11 @@ func FromURL(values url.Values, opts ...Option) (*Filter, error) {
 		}
 	}
 
+	groups := map[string]*Group{}
+	var groupOrder []string
+
 	for key, valList := range values {
-		if len(valList) == 0 || valList[0] == "" || key == "" {
+		if len(valList) == 0 || key == "" {
 			continue
 		}
 
@@ -105,40 +115,130 @@ func FromURL(values url.Values, opts ...Option) (*Filter, error) {
 			continue
 		}
 
-		field, op := parseURLKey(key)
-		val := valList[0]
-
-		if !cfg.isAllowed(field) {
-			continue
-		}
-
-		var parsedVal any = val
-		inParts := []string(nil)
-		if op != OpIsNull && op != OpIsNotNull && (op == OpIn || strings.Contains(val, ",")) {
-			parts := strings.Split(val, ",")
-			if len(parts) > 1 {
-				op = OpIn
-				inParts = parts
-				parsedVal = parts
+		logical, groupID, fieldKey, grouped := parseLogicalKey(key)
+		if !grouped {
+			if valList[0] == "" {
+				continue
 			}
-		}
-
-		if typ, ok := cfg.fieldTypes[field]; ok && op != OpIsNull && op != OpIsNotNull {
-			converted, err := convertURLValue(parsedVal, inParts, typ)
+			cond, err := parseURLCondition(key, valList[0], cfg)
 			if err != nil {
 				return nil, err
 			}
-			parsedVal = converted
+			if cond == nil {
+				continue
+			}
+			filter.Conditions = append(filter.Conditions, *cond)
+			continue
 		}
 
-		filter.Conditions = append(filter.Conditions, Condition{
-			Field:    field,
-			Operator: op,
-			Value:    parsedVal,
-		})
+		groupKey := string(logical) + ":" + groupID
+		group := groups[groupKey]
+		if group == nil {
+			group = &Group{Operator: logical}
+			groups[groupKey] = group
+			groupOrder = append(groupOrder, groupKey)
+		}
+		for _, raw := range valList {
+			if raw == "" {
+				continue
+			}
+			cond, err := parseURLCondition(fieldKey, raw, cfg)
+			if err != nil {
+				return nil, err
+			}
+			if cond == nil {
+				continue
+			}
+			group.Items = append(group.Items, *cond)
+		}
 	}
 
+	filter.Expr = buildURLExpr(filter.Conditions, groups, groupOrder)
 	return filter, nil
+}
+
+func parseURLCondition(key, val string, cfg *options) (*Condition, error) {
+	field, op := parseURLKey(key)
+	if !cfg.isAllowed(field) {
+		return nil, nil
+	}
+
+	var parsedVal any = val
+	inParts := []string(nil)
+	if op != OpIsNull && op != OpIsNotNull && (op == OpIn || strings.Contains(val, ",")) {
+		parts := strings.Split(val, ",")
+		if len(parts) > 1 {
+			op = OpIn
+			inParts = parts
+			parsedVal = parts
+		}
+	}
+
+	if typ, ok := cfg.fieldTypes[field]; ok && op != OpIsNull && op != OpIsNotNull {
+		converted, err := convertURLValue(parsedVal, inParts, typ)
+		if err != nil {
+			return nil, err
+		}
+		parsedVal = converted
+	}
+
+	return &Condition{Field: field, Operator: op, Value: parsedVal}, nil
+}
+
+func parseLogicalKey(key string) (op LogicalOperator, id, fieldKey string, ok bool) {
+	switch {
+	case strings.HasPrefix(key, "or."):
+		op = LogicalOr
+		key = strings.TrimPrefix(key, "or.")
+	case strings.HasPrefix(key, "and."):
+		op = LogicalAnd
+		key = strings.TrimPrefix(key, "and.")
+	default:
+		return "", "", "", false
+	}
+	if key == "" {
+		return "", "", "", false
+	}
+	if i := strings.IndexByte(key, '.'); i > 0 && digitsOnly(key[:i]) {
+		id = key[:i]
+		key = key[i+1:]
+		if key == "" {
+			return "", "", "", false
+		}
+	}
+	return op, id, key, true
+}
+
+func digitsOnly(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func buildURLExpr(conditions []Condition, groups map[string]*Group, order []string) Expression {
+	var grouped []Expression
+	for _, key := range order {
+		group := groups[key]
+		if group == nil || len(group.Items) == 0 {
+			continue
+		}
+		grouped = append(grouped, *group)
+	}
+	if len(grouped) == 0 {
+		return nil
+	}
+	if len(conditions) == 0 && len(grouped) == 1 {
+		return grouped[0]
+	}
+	items := make([]Expression, 0, len(conditions)+len(grouped))
+	for _, cond := range conditions {
+		items = append(items, cond)
+	}
+	items = append(items, grouped...)
+	return And(items...)
 }
 
 func parseURLKey(key string) (string, Operator) {

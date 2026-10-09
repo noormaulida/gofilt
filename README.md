@@ -145,12 +145,47 @@ Supported URL syntax:
 | `deleted_at[null]=true` | `IS NULL` (`isnull`, `is_null`, `is` are aliases; value is ignored) |
 | `deleted_at[is]=null` | `IS NULL` |
 | `deleted_at[notnull]=true` | `IS NOT NULL` (`isnotnull`, `not_null`, `is_not_null` are aliases) |
+| `or.role=admin&or.role=moderator` | OR group, combined with other fields using AND |
+| `or.0.role=admin&or.1.status=pending` | Separate indexed OR groups |
+| `and.0.status=active&and.0.age[gte]=18` | Indexed AND group |
 | `sort=name` | Sort by `name` ascending |
 | `sort=name,-created_at` | Sort by `name` ascending, then `created_at` descending |
 | `limit=10` | Pagination limit (defaults with `WithDefaultLimit`, capped by `WithMaxLimit`) |
 | `offset=20` or `page=20` | Pagination offset |
 
 Negative or non-integer values for `limit`, `offset`, or `page` return `ErrInvalidLimit` or `ErrInvalidOffset` deterministically.
+
+### Groups
+
+Flat conditions are AND. `or.` and `and.` keys build `Filter.Expr`, a tree of `Condition` and `Group` values.
+
+```text
+?status=active&age[gte]=18&or.role=admin&or.role=moderator
+```
+
+```text
+AND
+├── status = active
+├── age >= 18
+└── OR
+    ├── role = admin
+    └── role = moderator
+```
+
+Indexed keys keep separate groups: `or.0.role=admin&or.0.role=moderator&or.1.status=pending`. The same shape can be built in Go:
+
+```go
+filter.Expr = gofilt.And(
+    gofilt.Condition{Field: "status", Operator: gofilt.OpEq, Value: "active"},
+    gofilt.Condition{Field: "age", Operator: gofilt.OpGte, Value: 18},
+    gofilt.Or(
+        gofilt.Condition{Field: "role", Operator: gofilt.OpEq, Value: "admin"},
+        gofilt.Condition{Field: "role", Operator: gofilt.OpEq, Value: "moderator"},
+    ),
+)
+```
+
+When `Expr` is set, adapters render that tree and ignore `Conditions`. Nested groups are parenthesized. A root AND group is not wrapped.
 
 ### Typed URL values
 
@@ -244,7 +279,7 @@ type Query struct {
 
 ```
 gofilt/
-├── gofilt.go              # Core types: Filter, Condition, Operator, Option, Errors
+├── gofilt.go              # Core types: Filter, Expression, Condition, Group, Operator
 ├── pagination.go          # Pagination metadata helper: Page, NextOffset, PreviousOffset
 ├── operator.go            # Operator lookup & aliases (public)
 ├── options.go             # Option constructors + defaultOptions

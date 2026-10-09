@@ -38,10 +38,48 @@ const (
 
 // Condition represents a single filter predicate: Field Operator Value.
 // Value is typed as any so it can hold scalars (string, int) or slices for OpIn / OpBetween.
+// Condition implements Expression, so it can sit inside a Group.
 type Condition struct {
 	Field    string
 	Operator Operator
 	Value    any
+}
+
+func (Condition) expression() {}
+
+// LogicalOperator joins the items of a Group.
+type LogicalOperator string
+
+const (
+	// LogicalAnd requires every item in the group to match.
+	LogicalAnd LogicalOperator = "AND"
+	// LogicalOr requires at least one item in the group to match.
+	LogicalOr LogicalOperator = "OR"
+)
+
+// Expression is a node in a filter tree. The concrete types are Condition and Group.
+type Expression interface {
+	expression()
+}
+
+// Group joins nested expressions with AND or OR.
+// Items may be Condition values, Group values, or pointers to either.
+// A LogicalOperator other than LogicalOr is rendered as AND.
+type Group struct {
+	Operator LogicalOperator
+	Items    []Expression
+}
+
+func (Group) expression() {}
+
+// And builds a group that requires every item to match.
+func And(items ...Expression) Group {
+	return Group{Operator: LogicalAnd, Items: items}
+}
+
+// Or builds a group that requires any item to match.
+func Or(items ...Expression) Group {
+	return Group{Operator: LogicalOr, Items: items}
 }
 
 // Direction is the order applied to a sort field.
@@ -61,10 +99,14 @@ type Sort struct {
 }
 
 // Filter is the output of parsing a struct or URL query.
-// It holds ordered conditions, sorts, and pagination hints.
+// It holds ordered conditions, an optional expression tree, sorts, and pagination hints.
 // Adapters (GORM, SQL, etc.) accept *Filter and translate it to backend-specific queries.
+//
+// Conditions is an implicit AND list. Expr, when set, is the tree adapters render
+// instead, which is how nested AND and OR groups are expressed.
 type Filter struct {
 	Conditions []Condition
+	Expr       Expression
 	Sorts      []Sort
 	Limit      int
 	Offset     int

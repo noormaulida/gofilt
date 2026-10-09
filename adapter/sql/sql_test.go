@@ -156,6 +156,61 @@ func TestBuildWHERE_NullOperators(t *testing.T) {
 	}
 }
 
+func TestBuildWHERE_ExpressionTree(t *testing.T) {
+	role := &gofilt.Condition{Field: "role", Operator: gofilt.OpEq, Value: "admin"}
+	f := &gofilt.Filter{
+		Conditions: []gofilt.Condition{{Field: "ignored", Operator: gofilt.OpEq, Value: "nope"}},
+		Expr: gofilt.And(
+			gofilt.Condition{Field: "status", Operator: gofilt.OpEq, Value: "active"},
+			gofilt.Condition{Field: "age", Operator: gofilt.OpGte, Value: 18},
+			gofilt.Or(
+				role,
+				gofilt.Condition{Field: "role", Operator: gofilt.OpEq, Value: "moderator"},
+				(*gofilt.Condition)(nil),
+				nil,
+				gofilt.Group{Operator: "XOR"},
+				(*gofilt.Group)(nil),
+			),
+		),
+	}
+
+	where, args := BuildWHERE(f)
+	want := "WHERE status = $1 AND age >= $2 AND (role = $3 OR role = $4)"
+	if where != want {
+		t.Errorf("got %q want %q", where, want)
+	}
+	if !reflect.DeepEqual(args, []any{"active", 18, "admin", "moderator"}) {
+		t.Errorf("args: %#v", args)
+	}
+}
+
+func TestBuildWHERE_RootOrAndNull(t *testing.T) {
+	f := &gofilt.Filter{Expr: &gofilt.Group{Operator: gofilt.LogicalOr, Items: []gofilt.Expression{
+		gofilt.Condition{Field: "deleted_at", Operator: gofilt.OpIsNull},
+		gofilt.Condition{Field: "name", Operator: gofilt.OpLike, Value: "a"},
+	}}}
+	where, args := BuildWHERE(f)
+	if where != "WHERE (deleted_at IS NULL OR name LIKE $1)" {
+		t.Errorf("got %q", where)
+	}
+	if !reflect.DeepEqual(args, []any{"%a%"}) {
+		t.Errorf("args: %#v", args)
+	}
+
+	flat, _ := BuildWHERE(&gofilt.Filter{Expr: gofilt.Group{Operator: "XOR", Items: []gofilt.Expression{
+		gofilt.Condition{Field: "a", Operator: gofilt.OpEq, Value: 1},
+		gofilt.Condition{Field: "b", Operator: gofilt.OpEq, Value: 2},
+	}}})
+	if flat != "WHERE a = $1 AND b = $2" {
+		t.Errorf("unknown logical operator: %q", flat)
+	}
+
+	empty, emptyArgs := BuildWHERE(&gofilt.Filter{Expr: gofilt.Group{}})
+	if empty != "" || emptyArgs != nil {
+		t.Errorf("empty expr: %q %#v", empty, emptyArgs)
+	}
+}
+
 func TestBuildORDER(t *testing.T) {
 	f := &gofilt.Filter{
 		Sorts: []gofilt.Sort{
