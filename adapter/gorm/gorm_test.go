@@ -304,6 +304,35 @@ func TestApply_BetweenOperator_NilFallback(t *testing.T) {
 	}
 }
 
+func TestApply_ExpressionTree(t *testing.T) {
+	db := dryDB(t)
+	f := &gofilt.Filter{Expr: &gofilt.Group{Operator: gofilt.LogicalAnd, Items: []gofilt.Expression{
+		&gofilt.Condition{Field: "status", Operator: gofilt.OpEq, Value: "active"},
+		gofilt.Or(
+			gofilt.Condition{Field: "role", Operator: gofilt.OpEq, Value: "admin"},
+			gofilt.Condition{Field: "role", Operator: gofilt.OpEq, Value: "moderator"},
+		),
+		(*gofilt.Condition)(nil),
+		nil,
+		gofilt.Group{},
+		(*gofilt.Group)(nil),
+	}}}
+
+	tx := Apply(db, f).Model(&testUser{}).Find(&[]testUser{})
+	sql := tx.Statement.SQL.String()
+	if !strings.Contains(sql, "status = ?") || !strings.Contains(sql, "(role = ? OR role = ?)") {
+		t.Errorf("expression sql: %s", sql)
+	}
+	if strings.Contains(sql, "ignored") {
+		t.Errorf("expr should replace conditions, got %s", sql)
+	}
+
+	empty := Apply(dryDB(t), &gofilt.Filter{Expr: gofilt.Group{}}).Model(&testUser{}).Find(&[]testUser{})
+	if strings.Contains(empty.Statement.SQL.String(), "WHERE") {
+		t.Errorf("empty group should not add WHERE, got %s", empty.Statement.SQL.String())
+	}
+}
+
 func TestApply_NullOperators(t *testing.T) {
 	db := dryDB(t)
 	f := &gofilt.Filter{
