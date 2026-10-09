@@ -46,6 +46,10 @@ var urlOpMap = map[string]Operator{
 //
 // Empty values and empty query keys are ignored. Sort fields are ignored
 // unless explicitly whitelisted with WithAllowedSorts.
+//
+// URL values stay strings unless WithFieldTypes registers a type for the
+// column. Registered values are parsed before the condition is appended.
+// A value that does not match its registered type returns ErrInvalidValue.
 func FromURL(values url.Values, opts ...Option) (*Filter, error) {
 	cfg := defaultOptions()
 	for _, opt := range opts {
@@ -109,12 +113,22 @@ func FromURL(values url.Values, opts ...Option) (*Filter, error) {
 		}
 
 		var parsedVal any = val
+		inParts := []string(nil)
 		if op != OpIsNull && op != OpIsNotNull && (op == OpIn || strings.Contains(val, ",")) {
 			parts := strings.Split(val, ",")
 			if len(parts) > 1 {
 				op = OpIn
+				inParts = parts
 				parsedVal = parts
 			}
+		}
+
+		if typ, ok := cfg.fieldTypes[field]; ok && op != OpIsNull && op != OpIsNotNull {
+			converted, err := convertURLValue(parsedVal, inParts, typ)
+			if err != nil {
+				return nil, err
+			}
+			parsedVal = converted
 		}
 
 		filter.Conditions = append(filter.Conditions, Condition{
