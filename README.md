@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="https://skillicons.dev/icons?i=go" alt="Go" />
+  <img src="https://skillicons.dev/icons?i=go" alt="Go" width="80" />
 </p>
 
-<div align="center">
-  <h1 class="h1">gofilt</h1>
-</div>
+<p align="center">
+  <img src=".github/gofilt.svg" alt="gofilt" width="200" />
+</p>
 
 <p align="center">
   Lightweight, type-safe filter builder for Go.
@@ -138,8 +138,8 @@ Supported URL syntax:
 | `age[gte]=21` | `>=` |
 | `age[lt]=100` | `<` |
 | `age[lte]=99` | `<=` |
-| `name[like]=bud` | `LIKE` |
-| `name[ilike]=bud` | `ILIKE` |
+| `name[like]=noo` | `LIKE` |
+| `name[ilike]=noo` | `ILIKE` |
 | `id[in]=1,2,3` | `IN` (auto-split comma) |
 | `status=active,pending` | `IN` (auto-detect comma) |
 | `deleted_at[null]=true` | `IS NULL` (`isnull`, `is_null`, `is` are aliases; value is ignored) |
