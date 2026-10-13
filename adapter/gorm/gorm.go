@@ -28,6 +28,11 @@ var safeSortField = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za
 //
 // Filter.Expr, when set, is applied as one expression. Nested OR and AND
 // groups are parenthesized. Otherwise each Condition is applied with AND.
+//
+// Filter.Search is applied as one ILIKE OR group over SearchFields. Only
+// plain identifiers are used. Filter.Fields, when non-empty, is passed to
+// Select for those same plain identifiers. Associations, preloads, and
+// computed columns are left to the caller.
 func Apply(db *gorm.DB, f *gofilt.Filter) *gorm.DB {
 	if f.Expr != nil {
 		if clause, args := renderGormExpr(f.Expr, true); clause != "" {
@@ -38,6 +43,13 @@ func Apply(db *gorm.DB, f *gofilt.Filter) *gorm.DB {
 			clause, args := renderGormCondition(cond)
 			db = db.Where(clause, args...)
 		}
+	}
+
+	if clause, args := renderGormSearch(f); clause != "" {
+		db = db.Where(clause, args...)
+	}
+	if cols := safeGormColumns(f.Fields); len(cols) > 0 {
+		db = db.Select(cols)
 	}
 
 	for _, sort := range f.Sorts {
@@ -58,6 +70,44 @@ func Apply(db *gorm.DB, f *gofilt.Filter) *gorm.DB {
 	}
 
 	return db
+}
+
+func renderGormSearch(f *gofilt.Filter) (string, []any) {
+	fields := safeGormColumns(f.SearchFields)
+	if f.Search == "" || len(fields) == 0 {
+		return "", nil
+	}
+	parts := make([]string, len(fields))
+	args := make([]any, len(fields))
+	wrapped := "%" + f.Search + "%"
+	for i, field := range fields {
+		parts[i] = fmt.Sprintf("%s ILIKE ?", field)
+		args[i] = wrapped
+	}
+	clause := strings.Join(parts, " OR ")
+	if len(parts) > 1 {
+		clause = "(" + clause + ")"
+	}
+	return clause, args
+}
+
+func safeGormColumns(names []string) []string {
+	if len(names) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(names))
+	seen := map[string]bool{}
+	for _, name := range names {
+		if name == "" || seen[name] || !safeSortField.MatchString(name) {
+			continue
+		}
+		seen[name] = true
+		out = append(out, name)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func renderGormExpr(expr gofilt.Expression, root bool) (string, []any) {

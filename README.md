@@ -148,6 +148,8 @@ Supported URL syntax:
 | `or.role=admin&or.role=moderator` | OR group, combined with other fields using AND |
 | `or.0.role=admin&or.1.status=pending` | Separate indexed OR groups |
 | `and.0.status=active&and.0.age[gte]=18` | Indexed AND group |
+| `q=noor` or `search=noor` | Free-text search, only after `WithSearchFields` |
+| `fields=id,name,email` | Column projection, only after `WithSelectFields` |
 | `sort=name` | Sort by `name` ascending |
 | `sort=name,-created_at` | Sort by `name` ascending, then `created_at` descending |
 | `limit=10` | Pagination limit (defaults with `WithDefaultLimit`, capped by `WithMaxLimit`) |
@@ -186,6 +188,35 @@ filter.Expr = gofilt.And(
 ```
 
 When `Expr` is set, adapters render that tree and ignore `Conditions`. Nested groups are parenthesized. A root AND group is not wrapped.
+
+### Search
+
+`q` and `search` are normal columns until `WithSearchFields` lists the columns a list endpoint may search. The term is then matched with `ILIKE` on each of those columns, joined with `OR`, and combined with the rest of the filter using `AND`.
+
+```go
+filter, err := gofilt.FromURL(r.URL.Query(),
+    gofilt.WithSearchFields("name", "email", "phone"),
+)
+// ?q=noor
+// WHERE (name ILIKE '%noor%' OR email ILIKE '%noor%' OR phone ILIKE '%noor%')
+```
+
+`q` wins when both `q` and `search` are set. Identifiers that are not plain column names are ignored.
+
+### Field selection
+
+`fields` is a normal column until `WithSelectFields` lists the columns a client may request. Unknown names are dropped. The SQL adapter turns the result into a `SELECT` list. An empty selection returns an empty string so the caller can keep `SELECT *`.
+
+```go
+filter, err := gofilt.FromURL(r.URL.Query(),
+    gofilt.WithSelectFields("id", "name", "email"),
+)
+// ?fields=id,name,email
+// filter.Fields = ["id", "name", "email"]
+cols := gofiltsql.BuildSELECT(filter) // SELECT id, name, email
+```
+
+`Filter.Fields` is a flat column list. It does not describe GORM associations, preloads, joins, aliases, or computed expressions. The GORM adapter passes the same safe names to `Select` and leaves those other concerns to the caller.
 
 ### Typed URL values
 
@@ -239,13 +270,18 @@ db.Find(&users)
 ```go
 import gofiltsql "github.com/noormaulida/gofilt/adapter/sql"
 
+cols := gofiltsql.BuildSELECT(filter)
 where, args := gofiltsql.BuildWHERE(filter)
 orderBy := gofiltsql.BuildORDER(filter)
+if cols == "" {
+    cols = "SELECT *"
+}
+// cols = "SELECT id, name, email" when filter.Fields is set
 // where = "WHERE name ILIKE $1 AND age >= $2"
 // args  = ["%Noor%", 20]
 // orderBy = "ORDER BY name ASC, created_at DESC"
 rows, _ := db.QueryContext(ctx,
-    "SELECT * FROM users "+where+" "+orderBy,
+    cols+" FROM users "+where+" "+orderBy,
     args...,
 )
 ```
@@ -261,6 +297,8 @@ rows, _ := db.QueryContext(ctx,
 | `WithDefaultLimit(limit int)` | Fallback limit when no limit is provided in input |
 | `WithMaxLimit(max int)` | Cap the maximum allowed limit to guard against large queries |
 | `WithFieldTypes(map[string]reflect.Type)` | Parse URL values into the listed Go types; omitted fields stay strings |
+| `WithSearchFields(...string)` | Allow `q` / `search` to match these columns with `ILIKE` |
+| `WithSelectFields(...string)` | Allow `fields` to project only these columns |
 
 ## Struct Tag Format
 
@@ -288,7 +326,7 @@ gofilt/
 ├── value.go               # FieldTypesFrom and URL value conversion
 ├── adapter/
 │   ├── gorm/              # Apply filters, sorting, and pagination to GORM
-│   └── sql/               # Build WHERE and ORDER BY clauses
+│   └── sql/               # Build SELECT, WHERE, and ORDER BY clauses
 ├── go.mod                 # Single module — one `go get` covers all packages
 └── *_test.go              # Unit tests
 ```

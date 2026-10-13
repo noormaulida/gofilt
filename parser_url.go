@@ -41,6 +41,8 @@ var urlOpMap = map[string]Operator{
 //	or.<field>[op]=value  -> adds the predicate to one OR group under the root AND
 //	or.<n>.<field>[op]=value -> adds the predicate to indexed OR group n
 //	and.<n>.<field>[op]=value -> adds the predicate to indexed AND group n
+//	q=<text> or search=<text> -> Filter.Search when WithSearchFields is set
+//	fields=id,name -> Filter.Fields when WithSelectFields is set
 //
 // Negative limit or offset values return ErrInvalidLimit or ErrInvalidOffset.
 //
@@ -57,6 +59,10 @@ var urlOpMap = map[string]Operator{
 // Keys prefixed with or. or and. build Filter.Expr. Other fields stay an
 // implicit AND in Filter.Conditions. A query with no grouped keys leaves
 // Expr nil.
+//
+// q and search stay ordinary columns unless WithSearchFields lists the
+// columns that may be searched. fields stays an ordinary column unless
+// WithSelectFields lists the columns that may be projected.
 func FromURL(values url.Values, opts ...Option) (*Filter, error) {
 	cfg := defaultOptions()
 	for _, opt := range opts {
@@ -96,6 +102,11 @@ func FromURL(values url.Values, opts ...Option) (*Filter, error) {
 		}
 	}
 
+	filter.Search, filter.SearchFields = cfg.searchTerm(values)
+	if cols := cfg.selectedColumns(values); len(cols) > 0 {
+		filter.Fields = cols
+	}
+
 	groups := map[string]*Group{}
 	var groupOrder []string
 
@@ -112,6 +123,10 @@ func FromURL(values url.Values, opts ...Option) (*Filter, error) {
 			for _, value := range valList {
 				filter.Sorts = append(filter.Sorts, parseSorts(value, cfg)...)
 			}
+			continue
+		}
+
+		if cfg.skipsQueryKey(key) {
 			continue
 		}
 
@@ -155,6 +170,55 @@ func FromURL(values url.Values, opts ...Option) (*Filter, error) {
 
 	filter.Expr = buildURLExpr(filter.Conditions, groups, groupOrder)
 	return filter, nil
+}
+
+func (o *options) searchTerm(values url.Values) (string, []string) {
+	if len(o.searchFields) == 0 {
+		return "", nil
+	}
+	term := firstValue(values["q"])
+	if term == "" {
+		term = firstValue(values["search"])
+	}
+	if term == "" {
+		return "", nil
+	}
+	return term, append([]string(nil), o.searchFields...)
+}
+
+func (o *options) selectedColumns(values url.Values) []string {
+	if len(o.selectFields) == 0 {
+		return nil
+	}
+	raw := firstValue(values["fields"])
+	if raw == "" {
+		return nil
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" || seen[part] || !o.selectFields[part] {
+			continue
+		}
+		seen[part] = true
+		out = append(out, part)
+	}
+	return out
+}
+
+func (o *options) skipsQueryKey(key string) bool {
+	if (key == "q" || key == "search") && len(o.searchFields) > 0 {
+		return true
+	}
+	return key == "fields" && len(o.selectFields) > 0
+}
+
+func firstValue(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
 }
 
 func parseURLCondition(key, val string, cfg *options) (*Condition, error) {
