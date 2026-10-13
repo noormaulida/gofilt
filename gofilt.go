@@ -3,6 +3,7 @@ package gofilt
 import (
 	"errors"
 	"reflect"
+	"regexp"
 )
 
 var (
@@ -104,12 +105,44 @@ type Sort struct {
 //
 // Conditions is an implicit AND list. Expr, when set, is the tree adapters render
 // instead, which is how nested AND and OR groups are expressed.
+//
+// Search is a free-text term matched with ILIKE against SearchFields. Both stay
+// empty unless FromURL is called with WithSearchFields. Fields is an ordered
+// column projection from the fields query parameter, populated only when
+// WithSelectFields allows those names.
 type Filter struct {
-	Conditions []Condition
-	Expr       Expression
-	Sorts      []Sort
-	Limit      int
-	Offset     int
+	Conditions   []Condition
+	Expr         Expression
+	Search       string
+	SearchFields []string
+	Fields       []string
+	Sorts        []Sort
+	Limit        int
+	Offset       int
+}
+
+// columnIdent matches a single SQL identifier or a dotted path such as users.name.
+// It rejects spaces, quotes, and statement separators.
+var columnIdent = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$`)
+
+// safeColumns returns names that match columnIdent, in order, without duplicates.
+func safeColumns(names []string) []string {
+	if len(names) == 0 {
+		return nil
+	}
+	seen := make(map[string]bool, len(names))
+	out := make([]string, 0, len(names))
+	for _, name := range names {
+		if name == "" || seen[name] || !columnIdent.MatchString(name) {
+			continue
+		}
+		seen[name] = true
+		out = append(out, name)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // Option configures a parser (FromStruct / FromURL).
@@ -124,6 +157,8 @@ type options struct {
 	defaultLimit  int
 	maxLimit      int
 	fieldTypes    map[string]reflect.Type
+	searchFields  []string
+	selectFields  map[string]bool
 }
 
 func defaultOptions() *options {

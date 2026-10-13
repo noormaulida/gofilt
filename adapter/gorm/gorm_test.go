@@ -333,6 +333,36 @@ func TestApply_ExpressionTree(t *testing.T) {
 	}
 }
 
+func TestApply_SearchAndSelect(t *testing.T) {
+	db := dryDB(t)
+	f := &gofilt.Filter{
+		Conditions: []gofilt.Condition{
+			{Field: "status", Operator: gofilt.OpEq, Value: "active"},
+		},
+		Search:       "noor",
+		SearchFields: []string{"name", "email", "bad name", "name"},
+		Fields:       []string{"id", "name", "id", "a b"},
+	}
+	tx := Apply(db, f).Model(&testUser{}).Find(&[]testUser{})
+	sql := tx.Statement.SQL.String()
+	if !strings.Contains(sql, "status = ?") || !strings.Contains(sql, "(name ILIKE ? OR email ILIKE ?)") {
+		t.Errorf("search sql: %s", sql)
+	}
+	if !strings.Contains(sql, "id") || !strings.Contains(sql, "name") {
+		t.Errorf("select sql: %s", sql)
+	}
+
+	single := Apply(dryDB(t), &gofilt.Filter{Search: "a", SearchFields: []string{"phone"}}).Model(&testUser{}).Find(&[]testUser{})
+	if !strings.Contains(single.Statement.SQL.String(), "phone ILIKE ?") {
+		t.Errorf("single search: %s", single.Statement.SQL.String())
+	}
+	skipped := Apply(dryDB(t), &gofilt.Filter{Search: "a", SearchFields: []string{"bad name"}, Fields: []string{""}}).Model(&testUser{}).Find(&[]testUser{})
+	skippedSQL := skipped.Statement.SQL.String()
+	if strings.Contains(skippedSQL, "ILIKE") || strings.Contains(skippedSQL, "SELECT") && strings.Contains(skippedSQL, "bad") {
+		t.Errorf("unsafe names should be omitted: %s", skippedSQL)
+	}
+}
+
 func TestApply_NullOperators(t *testing.T) {
 	db := dryDB(t)
 	f := &gofilt.Filter{

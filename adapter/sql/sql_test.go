@@ -211,6 +211,55 @@ func TestBuildWHERE_RootOrAndNull(t *testing.T) {
 	}
 }
 
+func TestBuildWHERE_Search(t *testing.T) {
+	f := &gofilt.Filter{
+		Conditions: []gofilt.Condition{
+			{Field: "status", Operator: gofilt.OpEq, Value: "active"},
+		},
+		Search:       "noor",
+		SearchFields: []string{"name", "email", "name", "bad name"},
+	}
+	where, args := BuildWHERE(f)
+	want := "WHERE status = $1 AND (name ILIKE $2 OR email ILIKE $3)"
+	if where != want {
+		t.Errorf("got %q want %q", where, want)
+	}
+	if !reflect.DeepEqual(args, []any{"active", "%noor%", "%noor%"}) {
+		t.Errorf("args: %#v", args)
+	}
+
+	only, onlyArgs := BuildWHERE(&gofilt.Filter{Search: "a", SearchFields: []string{"phone"}})
+	if only != "WHERE phone ILIKE $1" || !reflect.DeepEqual(onlyArgs, []any{"%a%"}) {
+		t.Errorf("single search: %q %#v", only, onlyArgs)
+	}
+
+	none, noneArgs := BuildWHERE(&gofilt.Filter{Search: "a", SearchFields: []string{"bad name"}})
+	if none != "" || noneArgs != nil {
+		t.Errorf("unsafe search fields: %q %#v", none, noneArgs)
+	}
+	withExpr, _ := BuildWHERE(&gofilt.Filter{
+		Expr:         gofilt.Group{},
+		Search:       "a",
+		SearchFields: []string{"name"},
+	})
+	if withExpr != "WHERE name ILIKE $1" {
+		t.Errorf("empty expr plus search: %q", withExpr)
+	}
+}
+
+func TestBuildSELECT(t *testing.T) {
+	if got := BuildSELECT(&gofilt.Filter{}); got != "" {
+		t.Errorf("empty fields: %q", got)
+	}
+	if got := BuildSELECT(&gofilt.Filter{Fields: []string{"id;drop", ""}}); got != "" {
+		t.Errorf("unsafe fields: %q", got)
+	}
+	got := BuildSELECT(&gofilt.Filter{Fields: []string{"id", "users.name", "id"}})
+	if got != "SELECT id, users.name" {
+		t.Errorf("select: %q", got)
+	}
+}
+
 func TestBuildORDER(t *testing.T) {
 	f := &gofilt.Filter{
 		Sorts: []gofilt.Sort{
