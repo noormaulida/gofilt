@@ -1,9 +1,5 @@
 <p align="center">
-  <img src="https://skillicons.dev/icons?i=go" alt="Go" width="80" />
-</p>
-
-<p align="center">
-  <img src=".github/gofilt.svg" alt="gofilt" width="200" />
+  <img src=".github/gofilt.svg" alt="gofilt" width="720" />
 </p>
 
 <p align="center">
