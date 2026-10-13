@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src=".github/gofilt.svg" alt="gofilt" width="400" />
+  <img src=".github/gofilt.svg" alt="gofilt" width="520" />
 </p>
 
 <p align="center">
