@@ -1,5 +1,5 @@
 <p align="center">
-  <img src=".github/gofilt.png" alt="gofilt" width="720" />
+  <img src=".github/gofilt.png" alt="gofilt" width="400" />
 </p>
 
 <p align="center">
